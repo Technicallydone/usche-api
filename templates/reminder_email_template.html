@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        margin-top: 10px;
+        font-size: 16px;
+        color: #ffffff;
+        background-color: #1a73e8;
+        text-decoration: none;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <p>Dear {{ title }} {{ last_name }},</p>
+
+    <p>
+      This is a friendly reminder that the abstract submission deadline for
+      USCHe-2025 is approaching. We encourage you to complete your submission
+      before the deadline.
+    </p>
+
+    <p><strong>Submission Deadline:</strong> {{ deadline }}</p>
+    <p><strong>Event Date:</strong> {{ start_date }}</p>
+    <p><strong>Venue:</strong> {{ venue }}</p>
+
+    <p>You can submit your abstract by clicking the link below:</p>
+
+    <p>
+      <a href="http://www.usche.ac.tz/dashboard/abstract" class="button"
+        >Submit Abstract</a
+      >
+    </p>
+
+    <p>
+      For your convenience, we’ve attached a reminder image with more
+      information.
+    </p>
+
+    <p>Best regards,</p>
+    <p>The USCHe-2025 Organizing Committee</p>
+  </body>
+</html>

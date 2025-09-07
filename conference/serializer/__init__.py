@@ -1,0 +1,2 @@
+from .conference_detail_serializer import ConferenceDetailSerializer
+from .request_join_conference import RequestJoinConferenceSerializer

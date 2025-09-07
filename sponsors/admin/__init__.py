@@ -1,0 +1,1 @@
+from .sponsors_admin import SponsorAdmin

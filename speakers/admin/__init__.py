@@ -1,0 +1,1 @@
+from .speakers_admin import SpeakerAdmin

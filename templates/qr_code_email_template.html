@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Authentication QR Code</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+      }
+      .container {
+        padding: 20px;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 14px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Hello {{ title }} {{ first_name }},</h2>
+      <p>
+        Please find your QR code attached below. Scan this QR code to
+        authenticate yourself.
+      </p>
+      <p class="footer">Best Regards,<br />USCHe</p>
+    </div>
+  </body>
+</html>

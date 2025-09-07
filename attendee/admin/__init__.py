@@ -1,0 +1,1 @@
+from .attendee_admin import AttendeeAdmin

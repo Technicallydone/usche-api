@@ -1,0 +1,1 @@
+from .certificate_view import CertificateViewSet

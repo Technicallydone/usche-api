@@ -1,0 +1,1 @@
+from .speaker_serializer import SpeakerSerializer

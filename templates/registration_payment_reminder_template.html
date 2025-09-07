@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        margin-top: 10px;
+        font-size: 16px;
+        color: #ffffff;
+        background-color: #28a745;
+        text-decoration: none;
+        border-radius: 5px;
+      }
+
+      .committee {
+        margin-top: 20px;
+      }
+
+      .committee h4 {
+        margin-bottom: 8px;
+        color: #1a73e8;
+      }
+
+      .committee p {
+        margin: 2px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <p>Dear {{ title }} {{ last_name }},</p>
+
+    <p>
+      This is a friendly reminder regarding your registration for
+      <strong>USCHe-2025</strong>. If you haven’t completed the payment yet, we
+      kindly request that you do so as soon as possible to confirm your
+      participation.
+    </p>
+
+    <p><strong>Event Start Date:</strong> {{ start_date }}</p>
+    {% comment %}
+    <p><strong>Abstract Submission Deadline:</strong> {{ deadline }}</p>
+    {% endcomment %}
+    <p><strong>Venue:</strong> {{ venue }}</p>
+
+    <p>For more information, we have attached a document for you.</p>
+
+    <p>
+      If you have any questions or need further assistance, feel free to contact
+      any member of the organizing committee:
+    </p>
+
+    <div class="committee">
+      <h4>USCHe-2025 Organizing Committee</h4>
+      <p><strong>Dr. Alfred Meremo</strong> – Chair</p>
+      <p>Email: alfred.meremo@udom.ac.tz</p>
+      <p>Phone: +255 757 554 515</p>
+
+      <p><strong>Dr. Agatha F. Ngowi</strong> – Deputy Chair</p>
+      <p>Email: agatha.ngowi@udom.ac.tz</p>
+      <p>Phone: +255 688 788 085</p>
+
+      <p><strong>Mr. Jacktan Josephat</strong> – Secretary</p>
+      <p>Email: jacktan.ruhighira@udom.ac.tz</p>
+      <p>Phone: +255 764 784 055</p>
+
+      <p><strong>CPA. Mohamed Luhindi</strong> – Treasurer</p>
+      <p>Email: Mohamed.luhindi@udom.ac.tz</p>
+      <p>Phone: +255 621 252 094</p>
+    </div>
+
+    <p>We look forward to your participation!</p>
+
+    <p>Best regards,</p>
+    <p>The USCHe-2025 Organizing Committee</p>
+  </body>
+</html>

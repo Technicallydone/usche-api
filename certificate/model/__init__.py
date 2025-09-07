@@ -1,0 +1,1 @@
+from .certificate_model import Certificate

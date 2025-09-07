@@ -1,0 +1,7 @@
+.options-group {
+  transition: all 0.3s ease;
+}
+
+.options-group input[required] {
+  border-left: 3px solid #79aec8;
+}

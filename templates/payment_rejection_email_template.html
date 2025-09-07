@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment Rejection</title>
+    <style>
+      body {
+        font-family: "Poppins", sans-serif;
+        background-color: #fff9e6;
+        margin: 0;
+        padding: 0;
+        color: #3c4b64;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        font-size: 24px;
+        font-weight: bold;
+        color: #0864cc;
+      }
+      .title {
+        font-size: 20px;
+        color: #f4a900;
+      }
+      .message {
+        font-size: 16px;
+        margin-top: 15px;
+      }
+      .footer {
+        font-size: 14px;
+        color: #f4a900;
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">Dear {{ title }} {{ last_name }},</div>
+      <div class="message">
+        <p>
+          We regret to inform you that your payment has been rejected. The
+          reason for this rejection is as follows:
+        </p>
+        <p>{{ comment }}</p>
+        <p>
+          If you have any questions or would like further clarification, please
+          feel free to reach out to us.
+        </p>
+      </div>
+      <div class="footer">
+        <p>Regards,</p>
+        <p>Payment Support Team</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,48 @@
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Django migrations
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Database files
+*.sqlite3
+
+# Environment variables
+.env
+.env.production
+
+
+#My Virtual Environment
+myvenv/
+myenv/
+
+# Static files
+staticfiles/
+# /static/
+/media/
+
+# IDE files
+.vscode/
+.idea/
+
+# Other files to ignore
+*.log
+*.log.
+logs/app_logs.log.*
+.DS_Store
+
+ignore.txt
+
+# Ignore Celery related files
+celerybeat-schedule*
+*.celerybeat
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+
+# Ignore zipped env files
+*.zip
+

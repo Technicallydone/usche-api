@@ -1,0 +1,7 @@
+from .conference_admin import ConferenceAdmin
+from .bank_account_admin import BankAccountAdmin
+from .conference_schedule_admin import ConferenceScheduleAdmin
+from .target_group_admin import TargetGroupAdmin
+from .registration_fee_admin import RegistrationFeeAdmin
+from .topic_admin import TopicAdmin
+from .conference_schedule_document_admin import ConferenceScheduleDocumentAdmin

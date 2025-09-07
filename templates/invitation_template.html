@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invitation Letter</title>
+    <style>
+      body {
+        font-family: "Times New Roman", serif;
+        font-size: 12pt;
+        margin: 40px;
+        text-align: justify;
+      }
+      .logo {
+        height: 80px;
+      }
+      .subject {
+        text-align: center;
+        font-weight: bold;
+        text-decoration: underline;
+        font-size: 14pt;
+        margin-top: 20px;
+      }
+      .content {
+        font-size: 12px;
+        margin-top: 20px;
+      }
+      .content ol {
+        margin: 0;
+        padding-left: 15px;
+        list-style-position: outside;
+      }
+
+      .content ol li {
+        margin-bottom: 15px;
+        text-indent: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <table width="100%">
+      <tr>
+        <td width="15%" align="left">
+          <img src="{{ images.uhuru_logo }}" class="logo" />
+        </td>
+        <td width="70%" align="center">
+          <h2 style="margin: 2px 0; font-size: 14px">
+            THE UNITED REPUBLIC OF TANZANIA
+          </h2>
+          <h3 style="margin: 2px 0; font-size: 14px">
+            MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY
+          </h3>
+          <h2 style="margin: 2px 0; font-size: 14px">
+            THE UNIVERSITY OF DODOMA
+          </h2>
+          <h2 style="margin: 2px 0; font-size: 14px">
+            UDOM Scientific Conference on Health (USCHe)
+          </h2>
+          <h4 style="margin: 2px 0; font-size: 14px">
+            P.O.Box 395, Dodoma | Email: info.usche@udom.ac.tz
+          </h4>
+        </td>
+        <td width="15%" align="right">
+          <img src="{{ images.udom_logo }}" class="logo" />
+        </td>
+      </tr>
+    </table>
+
+    <div style="height: 3px; background-color: gray"></div>
+
+    <p style="text-align: right; font-size: 12px">
+      <strong>Date:</strong> {{ date }}
+    </p>
+
+    <p style="font-size: 12px">
+      <strong>{{ title }} {{ last_name }}</strong><br />
+      {{ email }}
+    </p>
+
+    <p style="font-size: 12px">Dear Sir/Madam,</p>
+
+    <p class="subject">
+      RE: INVITATION TO ATTEND THE 2<sup><small>ND</small></sup> UDOM SCIENTIFIC
+      CONFERENCE ON HEALTH
+    </p>
+
+    <p style="font-size: 12px">Reference is made to the above heading.</p>
+
+    <div class="content">
+      <ol>
+        <li>
+          The University of Dodoma will be conducting the 2<sup
+            ><small>ND</small></sup
+          >
+          UDOM Scientific Conference on Health (USCHe) from
+          <strong>11<sup>th</sup> - 13<sup>th</sup> June 2025</strong> at
+          <strong
+            >Dodoma City Hall - Magufuli (Government) City, Mtumba Area</strong
+          >
+          in Dodoma, Tanzania. The main theme will be “Evidence-Based Practices
+          and Innovations in Addressing Health Challenges”.
+        </li>
+        <li>
+          This scientific conference is expected to bring together scholars,
+          researchers, practitioners, policymakers, and other stakeholders in
+          healthcare, the objective being; fostering knowledge exchange,
+          innovations, communication, and promotion of best practices across
+          various aspects of healthcare. In so doing, contribute towards
+          improving effectiveness in addressing health challenges. Also, enable
+          personal visibility, exposure, and interactions towards forging needed
+          national and international collaborations for mutual growth in career
+          and ability to address pertinent health challenges.
+        </li>
+        <li>
+          On behalf of the organizing committee, it is my pleasure to invite you
+          to this scientific conference.
+        </li>
+        <li>
+          For information on
+          <strong
+            >registration, abstract submission, payment details, pre- and
+            post-conference events, kindly visit
+            <a href="http://www.usche.ac.tz" target="_blank">www.usche.ac.tz</a>
+          </strong>
+        </li>
+      </ol>
+    </div>
+
+    <p style="font-size: 12px">Karibu sana.</p>
+
+    <table width="100%" style="margin-top: 10px">
+      <tr>
+        <td
+          width="70%"
+          align="left"
+          style="font-size: 12px; padding: 0; margin: 0"
+        >
+          <img src="{{ images.signature }}" style="margin: 0; padding: 0" />
+          <p style="margin: 0; padding: 0; font-weight: bold">
+            Alfred Meremo, MD, MMed, FISN, PhD.
+          </p>
+          <p style="margin: 0; padding: 0">Chair, Organizing Committee</p>
+          <p style="margin: 0; padding: 0">
+            UDOM Scientific Conference on Health (USCHe)
+          </p>
+        </td>
+        <td width="30%" align="right" style="padding: 0; margin: 0">
+          <img
+            src="{{ images.usche_logo }}"
+            class="logo"
+            style="margin: 0; padding: 0"
+          />
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
