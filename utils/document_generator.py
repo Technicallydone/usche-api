@@ -4,6 +4,7 @@ from io import BytesIO
 import tempfile
 from xhtml2pdf import pisa
 from django.template.loader import render_to_string
+from certificate.enums.cert_purpose import CertificatePurpose
 from conference.models import Conference
 from usche_app import settings
 import os
@@ -67,7 +68,7 @@ def generate_invitation_pdf(user: User, conference: Conference):
         return None
     
     
-def generate_certificate_pdf(user: User, conference: Conference):
+def generate_certificate_pdf(user: User, conference: Conference, purpose=CertificatePurpose.ATTENDANCE.value):
     """
     Generates a certificate PDF with embedded fonts and images.
 
@@ -128,11 +129,24 @@ def generate_certificate_pdf(user: User, conference: Conference):
         }}
         </style>
         """
+        
+        if purpose == CertificatePurpose.ATTENDANCE:
+            purpose_text = "active participation"
+        elif purpose == CertificatePurpose.PRESENTATION:
+            purpose_text = "active presentation"
+        else:
+            purpose_text = "active participation"
+
+        full_name = f"{user.title} {user.first_name} "
+        if user.middle_name:
+            full_name += f"{user.middle_name} "
+        full_name += user.last_name
 
         html_content = render_to_string("certificate_template.html", {
             "full_name": f"{user.title} {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
             "images": images,
             "font_face_overrides": font_face_overrides,
+            "purpose_text": purpose_text,
         })
 
         # Define custom temp directory from settings

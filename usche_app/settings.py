@@ -56,31 +56,18 @@ DEBUG = env.bool('DEBUG')
 CORS_ALLOW_CREDENTIALS = True
 
 ALLOWED_HOSTS = [
-    'portal.usche.ac.tz',
-    'www.portal.usche.ac.tz',
-    'newportal.usche.ac.tz',
-    'www.newportal.usche.ac.tz',
     'conference.usche.ac.tz',
     'www.conference.usche.ac.tz',
-    'usche.ac.tz',
-    'www.usche.ac.tz',
     '64.227.139.214',
     '127.0.0.1',
-    'localhost',
-    'mini-netumo.local',
+    '0.0.0.0',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://conference.usche.ac.tz",
     "https://conference.usche.ac.tz:8443",
-    "https://www.conference.usche.ac.tz",
-    "https://portal.usche.ac.tz",
-    "https://www.portal.usche.ac.tz",
+    "https://www.conference.usche.ac.tz:8443",
     "https://usche.ac.tz",
     "https://www.usche.ac.tz",
-    "https://newportal.usche.ac.tz",
-    "https://www.newportal.usche.ac.tz",
-    "https://mini-netumo.local",
     "http://localhost:5173",
 ]
 
@@ -325,7 +312,7 @@ CELERY_TASK_ROUTES = {
     'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
     'abstracts.tasks.process_require_payment': {'queue': 'high_priority'},
     'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
-    'certificate.tasks.generate_and_send_certificates_task': {'queue': 'high_priority'},
+    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
 }
 
 
@@ -381,8 +368,8 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(days=30),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
-    'generate_and_send_certificates_task': {
-        'task': 'certificate.tasks.generate_and_send_certificates_task',
+    'generate_certificates_for_conference_task': {
+        'task': 'certificate.tasks.generate_certificates_for_conference_task',
         'schedule': timedelta(minutes=5),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
