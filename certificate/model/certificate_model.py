@@ -14,11 +14,11 @@ class Certificate(models.Model):
     
     issued_at = models.DateTimeField(default=timezone.now, editable=False)
     is_sent = models.BooleanField(default=False)
+    is_created = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'certificate'
         app_label = 'certificate'
-        unique_together = ('user', 'conference')
 
     def __str__(self):
         return f"Certificate for {self.user.email} - {self.conference.conference_name}"
@@ -54,7 +54,7 @@ class Certificate(models.Model):
 
         queryset = User.objects.exclude(
             user_id__in=cls.objects.filter(conference=conference).values('user_id')
-        ).filter(is_superuser=False)
+        ).filter(is_superuser=False, is_active=True)
 
         if search:
             search = search.lower()

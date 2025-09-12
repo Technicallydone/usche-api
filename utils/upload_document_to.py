@@ -26,3 +26,6 @@ def upload_certificate_template(instance, filename):
     document_id = instance.conference_id
     extension = filename.split('.')[-1]
     return os.path.join('certificate_template', str(document_id) + '.' + extension)
+
+def upload_certificate_zip(instance, filename):
+    return os.path.join('certificates', f"{instance.conference.conference_id}.zip")
