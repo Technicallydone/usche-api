@@ -207,8 +207,8 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
             return Response({"detail": "User or Conference not found"}, status=status.HTTP_404_NOT_FOUND)
     
     @swagger_auto_schema(
-        operation_description="Mark an abstract as requiring payment",
-        operation_summary="Require Payment for an Abstract",
+        operation_description="Mark an abstract as approved",
+        operation_summary="Approve abstract",
         method="post",
         tags=["Abstract"],
         request_body=AbstractStatusUpdateSerializer,
@@ -218,18 +218,18 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Payment request email successfully sent to the user.")
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Abstract approved successfully.")
                     }
                 ),
             ),
         }
     )
     @action(detail=False, methods=['post'])
-    def require_payment(self, request: HttpRequest):
-        """Mark an abstract as requiring payment."""
+    def approve_abstract(self, request: HttpRequest):
+        """Mark an abstract as approved."""
         user = cast(User, request.user)
 
-        if not request.user.is_authenticated and user.role not in [ROLE.ORGANIZER.value, ROLE.BURSAR.value, ROLE.ADMIN.value]:
+        if not request.user.is_authenticated and user.role not in [ROLE.ORGANIZER.value, ROLE.ADMIN.value]:
             return Response(
                 {"detail": "You are not authorized to perform this task"},
                 status=status.HTTP_401_UNAUTHORIZED
@@ -239,7 +239,7 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             validated_data = serializer.validated_data
             with transaction.atomic():
-                abstract = Abstract.mark_as_require_payment(validated_data.get('abstract_id'))
+                abstract = Abstract.mark_as_approved(validated_data.get('abstract_id'))
 
                 if not abstract:
                     return Response({"detail": "Abstract not found or already processed"}, status=status.HTTP_404_NOT_FOUND)

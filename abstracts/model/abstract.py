@@ -160,18 +160,6 @@ class Abstract(models.Model):
         
         return cls.objects.filter(filters).prefetch_related('payment')
 
-        
-    @classmethod
-    def mark_as_require_payment(cls, abstract_id: uuid.UUID):
-        """Mark an abstract as requiring payment."""
-        abstract = cls.objects.filter(abstract_id=abstract_id).first()
-        if abstract and abstract.status == AbstractStatus.PENDING.value:
-            abstract.status = AbstractStatus.APPROVED.value
-            abstract.sent_at = timezone.now()
-            abstract.save(update_fields=["status", "sent_at"])
-            return abstract
-        return None
-    
     def payment_email_sent(self):
         self.require_payment_email_sent = True
         self.save(update_fields=["require_payment_email_sent"])
@@ -192,11 +180,10 @@ class Abstract(models.Model):
     def mark_as_approved(cls, abstract_id: uuid.UUID):
         """Approve an abstract if payment is done."""
         abstract = cls.objects.filter(abstract_id=abstract_id).select_for_update().first()
-        if abstract and abstract.status == AbstractStatus.REQUIRE_PAYMENT.value and abstract.is_payment_done:
-            abstract.status = AbstractStatus.APPROVED.value
-            abstract.save(update_fields=["status"])
-            return abstract
-        return None
+        
+        abstract.status = AbstractStatus.APPROVED.value
+        abstract.save(update_fields=["status"])
+        return abstract
     
     @classmethod
     def get_abstract_by_id(cls, abstract_id: uuid.UUID):
