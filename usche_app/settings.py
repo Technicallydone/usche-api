@@ -63,7 +63,7 @@ ALLOWED_HOSTS = [
     '0.0.0.0',
 ]
 
-CSRF_TRUSTED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = [
     "https://conference.usche.ac.tz:8443",
     "https://www.conference.usche.ac.tz:8443",
     "https://usche.ac.tz",
@@ -383,4 +383,4 @@ CELERY_BEAT_SCHEDULE = {
 
 # Proxy configuration
 USE_X_FORWARDED_HOST = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
