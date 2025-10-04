@@ -111,7 +111,7 @@ def generate_certificates_for_conference_task(batch_size: int = 50):
                     f.write(new_buffer.getvalue())
 
             # Update DB record
-            cert_zip_obj.zip_file.name = str(zip_path.relative_to(Path("media")))
+            cert_zip_obj.zip_file.name = str(zip_path.relative_to(Path(settings.MEDIA_ROOT)))
             cert_zip_obj.save(update_fields=["zip_file", "updated_at"])
 
             logger.info(f"Certificates generated successfully for conference {conference.conference_id}")
