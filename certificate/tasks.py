@@ -13,7 +13,7 @@ import zipfile, io, logging
 logger = logging.getLogger(__name__)
 
 @shared_task()
-def generate_certificates_for_conference_task(batch_size: int = 100):
+def generate_certificates_for_conference_task(batch_size: int = 50):
     """
     Generate attendance and presentation certificates for a batch of users without certificates
     for the latest conference. Creates two folders inside the ZIP:
