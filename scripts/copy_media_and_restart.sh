@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-SRC_DIR="/root/backup"
-DEST_DIR="/var/www/usche/assets/media"
+SRC_DIR="/Users/mcharo/projects/usche/server_backup"
+DEST_DIR="/Users/mcharo/projects/usche/assets/media"
 
 # Create destination directory if it doesn't exist
 if [ ! -d "$DEST_DIR" ]; then

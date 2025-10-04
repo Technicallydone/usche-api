@@ -133,7 +133,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         if purpose == CertificatePurpose.ATTENDANCE:
             purpose_text = "active participation"
         elif purpose == CertificatePurpose.PRESENTATION:
-            purpose_text = "active presentation"
+            purpose_text = "abstract presentation"
         else:
             purpose_text = "active participation"
 

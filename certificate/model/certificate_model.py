@@ -5,6 +5,7 @@ from user.models import User
 from conference.models import Conference
 from django.db.models import Value
 from django.db.models.functions import Concat, Lower
+from django.db import transaction
 
 class Certificate(models.Model):
     certificate_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -50,7 +51,6 @@ class Certificate(models.Model):
     
     @classmethod
     def users_without_certificate_for_conference(cls, conference: Conference, search: str = None):
-        from user.models import User
 
         queryset = User.objects.exclude(
             user_id__in=cls.objects.filter(conference=conference).values('user_id')
@@ -71,5 +71,24 @@ class Certificate(models.Model):
             ).filter(search_full_name__icontains=search)
 
         return queryset
+    
+    @classmethod
+    def claim_users_for_certificates(cls, conference: Conference, batch_size: int = 100):
+        """
+        Returns a queryset of users without certificates for a given conference.
+        Uses row-level locking to prevent double-processing by concurrent Celery workers.
+        """
+        # Base queryset: exclude users who already have a certificate
+        queryset = User.objects.exclude(
+            user_id__in=cls.objects.filter(conference=conference).values('user_id')
+        ).filter(is_superuser=False, is_active=True)
+
+        # Limit batch size and lock selected rows to prevent concurrent processing
+        queryset = queryset.order_by('created_at', 'user_id')
+
+        # Use transaction to apply FOR UPDATE SKIP LOCKED
+        with transaction.atomic():
+            users_to_process = queryset.select_for_update(skip_locked=True)[:batch_size]
+            return users_to_process
 
 

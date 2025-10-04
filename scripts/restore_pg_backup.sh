@@ -4,9 +4,9 @@ set -e
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
-BACKUP_ARCHIVE="/root/backup/backup_20250907_000001.tar.gz"
+BACKUP_ARCHIVE="/Users/mcharo/projects/usche/server_backup/new_backup_20251004.tar.gz"
 TMP_DIR="/tmp/db_restore_$(date +%s)"
-DB_NAME="usche_db_v2"
+DB_NAME="usche_db_v3"
 DB_USER="postgres"
 DB_PASSWORD="postgres"
 DB_HOST="localhost"
