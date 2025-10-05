@@ -13,7 +13,7 @@ import zipfile, io, logging
 logger = logging.getLogger(__name__)
 
 @shared_task()
-def generate_certificates_for_conference_task(batch_size: int = 50):
+def generate_certificates_for_conference_task():
     """
     Generate attendance and presentation certificates for a batch of users without certificates
     for the latest conference. Creates two folders inside the ZIP:
@@ -29,7 +29,7 @@ def generate_certificates_for_conference_task(batch_size: int = 50):
 
     # Fetch batch of users safely using SKIP LOCKED
     with transaction.atomic():
-        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=batch_size)
+        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=5)
         if not users.exists():
             logger.info(f"No new users without certificates for conference {conference.conference_id}")
             return {"status": "success", "message": "No new users to process"}

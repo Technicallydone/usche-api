@@ -377,7 +377,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'generate_certificates_for_conference_task': {
         'task': 'certificate.tasks.generate_certificates_for_conference_task',
-        'schedule': timedelta(minutes=5),
+        'schedule': timedelta(minutes=1),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
     # 'send_registration_payment_reminder_low_priority_email': {
