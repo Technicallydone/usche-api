@@ -153,14 +153,18 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         # ------------------ Temp HTML ------------------
         temp_dir = settings.CHROMIUM_TEMP_DIR or "/tmp/chromium-temp"
         os.makedirs(temp_dir, exist_ok=True)
+        os.chmod(temp_dir, 0o755)  # ensure celery user can enter
 
         with tempfile.NamedTemporaryFile("w", suffix=".html", dir=temp_dir, delete=False, encoding="utf-8") as tmp_file:
             tmp_file.write(html_content)
             temp_html_path = os.path.abspath(tmp_file.name)
+        
+        # Make the temp HTML file readable by celery-v2
+        os.chmod(temp_html_path, 0o644)
 
         # ------------------ Headless Chrome ------------------
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")  # use new headless mode for better rendering
+        chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
@@ -171,11 +175,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         try:
             driver.get(f"file://{temp_html_path}")
 
-            # Wait until body and all images are loaded
+            # Wait until body is loaded
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
-            time.sleep(1)  # Extra delay to ensure all fonts/images load
+            time.sleep(1)  # extra delay for fonts/images
 
             # ------------------ Generate PDF ------------------
             paper_width = 794 / 96
