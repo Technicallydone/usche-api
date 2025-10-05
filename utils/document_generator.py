@@ -79,7 +79,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         purpose: CertificatePurpose value.
 
     Returns:
-        bytes: The generated PDF content as byte stream.
+        bytes: The generated PDF content as byte stream, or None on failure.
     """
     try:
         # ------------------ Images ------------------
@@ -153,22 +153,20 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         # ------------------ Temp HTML ------------------
         temp_dir = settings.CHROMIUM_TEMP_DIR or "/tmp/chromium-temp"
         os.makedirs(temp_dir, exist_ok=True)
-        os.chmod(temp_dir, 0o755)  # ensure celery user can enter
 
         with tempfile.NamedTemporaryFile("w", suffix=".html", dir=temp_dir, delete=False, encoding="utf-8") as tmp_file:
             tmp_file.write(html_content)
             temp_html_path = os.path.abspath(tmp_file.name)
-        
-        # Make the temp HTML file readable by celery-v2
-        os.chmod(temp_html_path, 0o644)
 
         # ------------------ Headless Chrome ------------------
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--headless=old")  # stable headless
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-software-rasterizer")
+        chrome_options.add_argument("--allow-file-access-from-files")
+        chrome_options.add_argument("--disable-web-security")
 
         driver = webdriver.Chrome(options=chrome_options)
 
