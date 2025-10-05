@@ -2,12 +2,13 @@ import os
 import logging
 from io import BytesIO
 import tempfile
+import time
+import base64
 from xhtml2pdf import pisa
 from django.template.loader import render_to_string
 from certificate.enums.cert_purpose import CertificatePurpose
 from conference.models import Conference
 from usche_app import settings
-import os
 from datetime import datetime
 
 from selenium import webdriver
@@ -15,8 +16,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-import os
-import base64
 
 from user.models import User
 
@@ -76,7 +75,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
     Args:
         user (User): The user receiving the certificate.
-        conference: The conference instance.
+        conference: Conference instance.
         purpose: CertificatePurpose value.
 
     Returns:
@@ -157,11 +156,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         with tempfile.NamedTemporaryFile("w", suffix=".html", dir=temp_dir, delete=False, encoding="utf-8") as tmp_file:
             tmp_file.write(html_content)
-            temp_html_path = tmp_file.name
+            temp_html_path = os.path.abspath(tmp_file.name)
 
         # ------------------ Headless Chrome ------------------
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new")  # use new headless mode for better rendering
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
@@ -172,10 +171,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         try:
             driver.get(f"file://{temp_html_path}")
 
-            # Wait until body is loaded to ensure full rendering
+            # Wait until body and all images are loaded
             WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
+            time.sleep(1)  # Extra delay to ensure all fonts/images load
 
             # ------------------ Generate PDF ------------------
             paper_width = 794 / 96
