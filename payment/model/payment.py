@@ -70,8 +70,30 @@ class Payment(models.Model):
         return cls.objects.filter(status=PaymentStatus.PENDING.value, abstract__isnull=True)
     
     @classmethod
-    def get_approved_payments(cls):
-        return cls.objects.filter(status=PaymentStatus.COMPLETED.value)
+    def get_approved(cls, conference: Conference, search_query: str = None):
+        filters = Q(status=PaymentStatus.COMPLETED.value, conference=conference)
+        
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(user__first_name__icontains=search_query) |
+                Q(user__middle_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query)
+            )
+        return cls.objects.filter(filters).order_by('-timestamp')
+    
+    @classmethod
+    def get_pending(cls, conference: Conference, search_query: str = None):
+        filters = Q(status=PaymentStatus.PENDING.value, conference=conference)
+        
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(user__first_name__icontains=search_query) |
+                Q(user__middle_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query)
+            )
+        return cls.objects.filter(filters).order_by('-timestamp')
     
     @classmethod
     def conference_payment_stats(cls, conference: Conference) -> Tuple[int, int, int, int]:

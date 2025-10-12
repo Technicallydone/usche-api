@@ -103,18 +103,34 @@ class ConferenceStatsViewSet(viewsets.ViewSet):
                     }
                 ),
             ),
-        }
+        },
+        manual_parameters=[
+            openapi.Parameter(
+                name="conference_id",
+                in_=openapi.IN_QUERY,
+                description="UUID of the conference",
+                type=openapi.TYPE_STRING,
+                required=True
+            )
+        ],
     )
     @action(detail=False, methods=['get'])
-    def conference_stats(self, request: HttpRequest):
+    def statisticts(self, request: HttpRequest):
         user = cast(User, request.user)
         
         allowed_roles = [ROLE.ORGANIZER.value, ROLE.ADMIN.value, ROLE.BURSAR.value]
         if user.role not in allowed_roles and not user.is_staff:
             return Response(data={"detail": "You are forbidden to read this information"}, status=status.HTTP_403_FORBIDDEN)
         
+        conference_id = request.GET.get('conference_id')
+        
+        
+        if not conference_id:
+            return Response({"detail": "Conference ID is mandatory"}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        
         try:
-            conference = Conference.get_latest_conference()
+            conference = Conference.get_conference_by_id(conference_id=conference_id)
+            
             if conference is None:
                 return Response(data={"detail": "NO conference found"}, status=status.HTTP_404_NOT_FOUND)
             

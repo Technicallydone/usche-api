@@ -5,6 +5,7 @@ from django.core.validators import EmailValidator
 from django.db import models
 from conference.models import Conference
 from theme.models import MainTheme, SubTheme
+from user.enums.invitation_status import InvitationStatusEnum
 from user.enums.role import ROLE
 from user.enums.title import TITLE_ENUM
 from .base_user_manager import UserManager
@@ -144,10 +145,25 @@ class User(AbstractBaseUser, PermissionsMixin):
         return user
     
     @classmethod
-    def user_list(cls, search_query: str = None, ):
-        filters = Q(is_superuser=False, is_active=True)
-        filters &= ~Q(role=ROLE.ADMIN.value)
+    def users(
+        cls,
+        conference: Conference,
+        filter_type: str = InvitationStatusEnum.ALL.value,
+        search_query: Optional[str] = None,
+        is_active: bool = True
+    ):
+        """
+        Filters users based on the type of filter (ALL, INVITED, NOT_INVITED, INVITED_NOT_SENT)
+        """
+        from invitation.models import Invitation
+        
+        filter_type = InvitationStatusEnum.validate(filter_type)
 
+        filters = Q(is_superuser=False, is_active=is_active)
+        filters &= ~Q(role=ROLE.ADMIN.value)
+        
+        invitation_filters = Q(conference=conference)
+        
         if search_query:
             search_query = search_query.lower()
             filters &= (
@@ -155,20 +171,32 @@ class User(AbstractBaseUser, PermissionsMixin):
                 Q(middle_name__icontains=search_query) |
                 Q(last_name__icontains=search_query)
             )
+        
+        if filter_type == InvitationStatusEnum.ALL.value:
+            users = cls.objects.filter(filters).order_by('-created_at')
+            print(users)
+            invitations = Invitation.objects.filter(invitation_filters)
+            users_with_status = []
+            for user in users:
+                invitation = invitations.filter(user=user).first()
+                users_with_status.append({
+                    'user': user,
+                    'invitation_status': bool(invitation),
+                    'invitation_sent': invitation.invitation_sent if invitation else False
+                })
+            return users_with_status
+        
+        elif filter_type == InvitationStatusEnum.INVITED.value:
+            invited_users = User.objects.filter(filters, invitations__isnull=False).distinct().order_by('-created_at')
+            return [{'user': user, 'invitation_status': True, 'invitation_sent': user.invitations.first().invitation_sent} for user in invited_users]
 
-        return cls.objects.filter(filters).order_by('-created_at')
-    
-    @classmethod
-    def users(cls, search_query: str = None, ):
-        filters = Q(is_superuser=False)
-        filters &= ~Q(role=ROLE.ADMIN.value)
+        elif filter_type == InvitationStatusEnum.NOT_INVITED.value:
+            not_invited_users = User.objects.filter(filters, invitations__isnull=True).order_by('-created_at')
+            return [{'user': user, 'invitation_status': False, 'invitation_sent': False} for user in not_invited_users]
 
-        if search_query:
-            search_query = search_query.lower()
-            filters &= (
-                Q(first_name__icontains=search_query) |
-                Q(middle_name__icontains=search_query) |
-                Q(last_name__icontains=search_query)
-            )
+        elif filter_type == InvitationStatusEnum.INVITED_NOT_SENT.value:
+            invited_not_sent_users = User.objects.filter(filters, invitations__invitation_sent=False).order_by('-created_at')
+            return [{'user': user, 'invitation_status': True, 'invitation_sent': False} for user in invited_not_sent_users]
 
-        return cls.objects.filter(filters).order_by('-created_at')
+        else:
+            raise ValueError("Invalid filter_type. Must be one of: 'ALL', 'INVITED', 'NOT_INVITED', 'INVITED_NOT_SENT'.")

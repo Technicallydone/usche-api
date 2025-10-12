@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from utils.upload_document_to import upload_certificate_template
 from utils.validator import validate_future_date
@@ -29,6 +30,8 @@ class Conference(models.Model):
 
     
     registration_open = models.BooleanField(default=False)
+    
+    year = models.CharField(blank=False, null=False, default='2025')
 
     listing_date = models.DateTimeField(default=timezone.now, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
@@ -53,4 +56,11 @@ class Conference(models.Model):
     
     @classmethod
     def get_latest_conference(cls):
+        return cls.objects.order_by('-listing_date').first()
+    
+    @classmethod
+    def get_conference(cls, year: str = None):
+        if (year):
+            return cls.objects.filter(year=year).first()
+        
         return cls.objects.order_by('-listing_date').first()

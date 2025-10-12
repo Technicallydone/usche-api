@@ -30,6 +30,15 @@ class ConferenceViewSet(viewsets.ViewSet):
         method="post",
         tags=["Conference"],
         request_body=RequestJoinConferenceSerializer,
+        manual_parameters=[
+            openapi.Parameter(
+                name="conference_id",
+                in_=openapi.IN_QUERY,
+                description="UUID of the conference",
+                type=openapi.TYPE_STRING,
+                required=True
+            )
+        ],
         responses={
             200: openapi.Response(
                 description="Successfully joined the conference and payment recorded.",
@@ -72,21 +81,25 @@ class ConferenceViewSet(viewsets.ViewSet):
             ),
         }
     )
-    @action(detail=False, methods=['post'], url_path="request-to-join")
-    def request_to_join_conference(self, request: HttpRequest):
+    @action(detail=False, methods=['post'])
+    def join(self, request: HttpRequest):
         """Handles user requests to join a conference by uploading a payment slip."""
         if not request.user.is_authenticated:
             return Response(
                 data={"detail": "You are not authorized to perform this task, please login and provide authentication credentials"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+            
+        conference_id = request.GET.get('conference_id')
+        
+        if not conference_id:
+            return Response(data={"detail": "Conference ID is mandatory"}, status=status.HTTP_406_NOT_ACCEPTABLE)
 
         user = cast(User, request.user)
         serializer = RequestJoinConferenceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
-            conference_id = serializer.validated_data['conference_id']
             payment_slip = serializer.validated_data['payment_slip']
 
             try:
@@ -136,6 +149,15 @@ class ConferenceViewSet(viewsets.ViewSet):
         operation_summary="Get Last Inserted Conference",
         method="get",
         tags=["Conference"],
+        manual_parameters=[
+            openapi.Parameter(
+                name="conference_id",
+                in_=openapi.IN_QUERY,
+                description="UUID of the conference",
+                type=openapi.TYPE_STRING,
+                required=False
+            )
+        ],
         responses={
             200: openapi.Response(
                 description="Successfully retrieved the last inserted conference details.",
@@ -162,9 +184,11 @@ class ConferenceViewSet(viewsets.ViewSet):
         }
     )
     @action(detail=False, methods=['get'])
-    def retrieve_conference(self, request):
+    def read(self, request: HttpRequest):
+        year = request.GET.get('year')
+        
         try:
-            conference = Conference.objects.all().last()
+            conference = Conference.get_conference(year=year)
 
             if not conference:
                 return Response({"detail": "No conference available"}, status=status.HTTP_404_NOT_FOUND)
@@ -173,7 +197,7 @@ class ConferenceViewSet(viewsets.ViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @swagger_auto_schema(
         operation_description="Download the official conference program PDF by ID.",

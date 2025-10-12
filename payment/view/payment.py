@@ -111,10 +111,17 @@ class PaymentViewSet(viewsets.ViewSet):
                 type=openapi.TYPE_STRING,
                 required=True
             ),
+            openapi.Parameter(
+                'search_query',
+                openapi.IN_QUERY,
+                description="Search by user name",
+                type=openapi.TYPE_STRING,
+                required=False
+            ),
         ]
     )
     @action(detail=False, methods=["get"])
-    def approved_payments(self, request: HttpRequest):
+    def approved(self, request: HttpRequest):
         user = cast(User, request.user)
         
         if not request.user.is_authenticated or user.role not in [ROLE.ORGANIZER.value, ROLE.BURSAR.value, ROLE.ADMIN.value]:
@@ -124,6 +131,7 @@ class PaymentViewSet(viewsets.ViewSet):
             )
         
         conference_id = request.GET.get("conference_id")
+        search_query = request.GET.get('search_query')
         
         if conference_id is None:
             return Response(data={"detail": "Conference id is required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -135,7 +143,7 @@ class PaymentViewSet(viewsets.ViewSet):
                 return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
             
             # Use the get_approved_payments method here
-            payments = Payment.get_approved_payments()
+            payments = Payment.get_approved(conference=conference, search_query=search_query)
             
             paginator = PageNumberPagination()
             page = paginator.paginate_queryset(payments, request)
@@ -148,122 +156,6 @@ class PaymentViewSet(viewsets.ViewSet):
             return Response(data=response_serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             logger.error(f"Error while retrieving approved payments: {e}", exc_info=True)
-            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    
-    @swagger_auto_schema(
-        operation_description="Retrieve payments for the conference join requests",
-        operation_summary="Request Join Payments",
-        method="get",
-        tags=["Payment"],
-        responses={
-            200: openapi.Response(
-                description="Payments retrieved successfully",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'count': openapi.Schema(type=openapi.TYPE_INTEGER),
-                        'next': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'previous': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'results': openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    'payment_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'payment_slip': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'amount': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'timestamp': openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
-                                    'user': openapi.Schema( 
-                                        type=openapi.TYPE_OBJECT,
-                                        properties={
-                                            'user_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'email': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'country': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'occupation': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'title': openapi.Schema(type=openapi.TYPE_STRING),
-                                        }
-                                    ),
-                                }
-                            )
-                        ),
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid conference or not provided.",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Conference id not provided.")
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="Not Found - Conference not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Conference not found.")
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                'conference_id',
-                openapi.IN_QUERY,
-                description="Conference ID",
-                type=openapi.TYPE_STRING,
-                required=True
-            ),
-        ]
-    )
-    @action(detail=False, methods=["get"])
-    def rj_conference_payments(self, request: HttpRequest):
-        user = cast(User, request.user)
-        
-        if not request.user.is_authenticated and user.role not in [ROLE.ORGANIZER.value, ROLE.BURSAR.value, ROLE.ADMIN.value]:
-            return Response(data={"detail": "You are not authorized to request ticket for this conference"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        conference_id = request.GET.get("conference_id")
-        
-        if conference_id is None:
-            return Response(data={"detail": "Conference id is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            payments = Payment.get_join_request_payments()
-            
-            paginator = PageNumberPagination()
-            page = paginator.paginate_queryset(payments, request)
-            
-            if page is not None:
-                response_serializer = PaymentSerializer(page, many=True)
-                return paginator.get_paginated_response(response_serializer.data)
-            
-            response_serializer = PaymentSerializer(payments, many=True)
-            return Response(data=response_serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error while retrieving pending request joins: {e}", exc_info=True)
             return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @swagger_auto_schema(
@@ -706,5 +598,137 @@ class PaymentViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response(
                 {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    @swagger_auto_schema(
+        operation_description="Retrieve pending payment",
+        operation_summary="Retrieve Pending Payments",
+        method="get",
+        tags=["Payment"],
+        manual_parameters=[
+            openapi.Parameter(
+                'conference_id',
+                openapi.IN_QUERY,
+                description="Conference ID",
+                type=openapi.TYPE_STRING,
+                required=True
+            ),
+            openapi.Parameter(
+                'search_query', openapi.IN_QUERY,
+                description="Search query for filtering abstracts",
+                type=openapi.TYPE_STRING,
+            )
+        ],
+        responses={
+            200: openapi.Response(
+                description="Successfully payment retrieved",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'next': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'previous': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'results': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'payment_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'payment_slip': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'amount': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'status': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'timestamp': openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
+                                    'user': openapi.Schema(
+                                        type=openapi.TYPE_OBJECT,
+                                        properties={
+                                            'user_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'affiliation': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                                            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'email': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'country': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'occupation': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'title': openapi.Schema(type=openapi.TYPE_STRING),
+                                        }
+                                    ),
+                                }
+                            )
+                        ),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Bad Request - Invalid input",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Invalid input")
+                    }
+                ),
+            ),
+            404: openapi.Response(
+                description="Payment not found",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Payment not found")
+                    }
+                ),
+            ),
+            500: openapi.Response(
+                description="Internal Server Error",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while rejecting the payment")
+                    }
+                ),
+            ),
+        }
+    )
+    @action(detail=False, methods=['get'])
+    def pending_payments(self, request: HttpRequest):
+        user = cast(User, request.user)
+
+        if not user.is_authenticated and user.role != ROLE.BURSAR.value:
+            return Response(
+                {"detail": "You are not authorized to perform this task"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        conference_id = request.GET.get("conference_id")
+        search_query = request.GET.get("search_query")
+        
+        
+        if not conference_id:
+            return Response(
+                data={"detail": "Conference ID is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            conference = Conference.get_conference_by_id(conference_id=conference_id)
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+            payments = Payment.get_pending(conference=conference, search_query=search_query)
+            
+            paginator = PageNumberPagination()
+            page = paginator.paginate_queryset(payments, request)
+            
+            if page is not None:
+                response_serializer = PaymentSerializer(page, many=True)
+                return paginator.get_paginated_response(response_serializer.data)
+            
+            response_serializer = PaymentSerializer(payments, many=True)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error while retrieving pending payments: {e}")
+            return Response(
+                {"detail": "An unexpected error occurred"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
