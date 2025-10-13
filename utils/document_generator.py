@@ -2,19 +2,17 @@ import os
 import logging
 from io import BytesIO
 import tempfile
+import time
+import base64
 from xhtml2pdf import pisa
 from django.template.loader import render_to_string
 from certificate.enums.cert_purpose import CertificatePurpose
 from conference.models import Conference
 from usche_app import settings
-import os
 from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-import os
-import time
-import base64
 
 from user.models import User
 
@@ -149,9 +147,9 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "purpose_text": purpose_text,
         })
 
-        # Define custom temp directory from settings
-        temp_dir = settings.CHROMIUM_TEMP_DIR
-        os.makedirs(temp_dir, exist_ok=True)
+        # Define custom temp directory
+        temp_dir = "/var/www/usche/chromium-temp"
+        os.makedirs(temp_dir, exist_ok=True)  # create if doesn't exist
 
         # Write HTML to a temporary file inside custom temp_dir
         with tempfile.NamedTemporaryFile("w", suffix=".html", dir=temp_dir, delete=False, encoding="utf-8") as tmp_file:

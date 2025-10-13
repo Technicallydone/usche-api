@@ -13,7 +13,7 @@ import zipfile, io, logging
 logger = logging.getLogger(__name__)
 
 @shared_task()
-def generate_certificates_for_conference_task(batch_size: int = 100):
+def generate_certificates_for_conference_task():
     """
     Generate attendance and presentation certificates for a batch of users without certificates
     for the latest conference. Creates two folders inside the ZIP:
@@ -29,7 +29,7 @@ def generate_certificates_for_conference_task(batch_size: int = 100):
 
     # Fetch batch of users safely using SKIP LOCKED
     with transaction.atomic():
-        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=batch_size)
+        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=5)
         if not users.exists():
             logger.info(f"No new users without certificates for conference {conference.conference_id}")
             return {"status": "success", "message": "No new users to process"}
@@ -111,7 +111,7 @@ def generate_certificates_for_conference_task(batch_size: int = 100):
                     f.write(new_buffer.getvalue())
 
             # Update DB record
-            cert_zip_obj.zip_file.name = str(zip_path.relative_to(Path("media")))
+            cert_zip_obj.zip_file.name = str(zip_path.relative_to(Path(settings.MEDIA_ROOT)))
             cert_zip_obj.save(update_fields=["zip_file", "updated_at"])
 
             logger.info(f"Certificates generated successfully for conference {conference.conference_id}")
