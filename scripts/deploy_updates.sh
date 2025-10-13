@@ -61,4 +61,7 @@ sudo systemctl status $CELERY_SERVICE --no-pager
 echo "Checking Celery Beat service status..."
 sudo systemctl status $CELERY_BEAT_SERVICE --no-pager
 
+echo "Checking Registered Celery"
+celery -A usche_app inspect registered
+
 echo "Django deployment completed successfully."
