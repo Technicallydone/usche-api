@@ -4,7 +4,7 @@ from abstracts.models import Abstract
 
 
 class AbstractAdmin(admin.ModelAdmin):
-    list_display = ('title', 'authors', 'user_link', 'sub_theme_link', 'status', 'require_payment_email_sent', 'is_payment_done', 'view_details')
+    list_display = ('title', 'authors', 'user_link', 'sub_theme_link', 'status', 'is_payment_done', 'view_details')
     search_fields = ('title', 'user__first_name', 'user__last_name', 'sub_theme__title', 'status')
     list_filter = ('sub_theme', 'status', 'is_payment_done')
     ordering = ('-created_at',)
@@ -36,7 +36,7 @@ class AbstractAdmin(admin.ModelAdmin):
 
     view_details.short_description = "Actions"
 
-    list_editable = ('require_payment_email_sent', 'status', 'is_payment_done')
+    list_editable = ('status', 'is_payment_done')
 
     list_filter = ('sub_theme', 'status', 'is_payment_done')
 

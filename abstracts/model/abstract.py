@@ -28,7 +28,6 @@ class Abstract(models.Model):
         choices=AbstractStatus.choices(),
         default=AbstractStatus.default(),
     )
-    require_payment_email_sent = models.BooleanField(default=False)
     sent_at = models.DateTimeField(null=True, blank=True, help_text="When the payment request email was sent.")
     comment = models.TextField(blank=True, null=True, help_text="Optional comment regarding the abstract status.")
     is_payment_done = models.BooleanField(default=False, help_text="Indicates whether payment has been completed.")
@@ -104,16 +103,6 @@ class Abstract(models.Model):
             )
 
         return cls.objects.filter(filters)
-
-
-    @classmethod
-    def get_paid_abstracts(cls):
-        return cls.objects.filter(
-            status=AbstractStatus.REQUIRE_PAYMENT.value,
-            is_payment_done=False,
-            payment__status=PaymentStatus.PENDING.value,
-            payment__abstract__isnull=False
-        ).prefetch_related('payment').distinct()
         
     @classmethod
     def abstract_stats(cls, main_theme: MainTheme) -> Tuple[int, int, int, int]:
@@ -141,34 +130,10 @@ class Abstract(models.Model):
         return cls.objects.filter(filters).order_by('-created_at')
 
     @classmethod
-    def get_pending_payment_abstracts(cls,  main_theme: MainTheme, search_query: str = None):
-        sub_themes = SubTheme.objects.filter(theme=main_theme)
-        filters = Q(
-            sub_theme__in=sub_themes,
-            status=AbstractStatus.REQUIRE_PAYMENT.value,
-            is_payment_done=False,
-            payment__status=PaymentStatus.PENDING.value
-        )
-        
-        if search_query:
-            search_query = search_query.lower()
-            filters &= (
-                Q(user__first_name__icontains=search_query) |
-                Q(user__middle_name__icontains=search_query) |
-                Q(user__last_name__icontains=search_query)
-            )
-        
-        return cls.objects.filter(filters).prefetch_related('payment')
-
-    def payment_email_sent(self):
-        self.require_payment_email_sent = True
-        self.save(update_fields=["require_payment_email_sent"])
-
-    @classmethod
     def mark_as_rejected(cls, abstract_id: uuid.UUID, comment: str = None):
         """Reject an abstract with an optional comment."""
         abstract = cls.objects.filter(abstract_id=abstract_id).first()
-        if abstract and abstract.status in {AbstractStatus.PENDING.value, AbstractStatus.REQUIRE_PAYMENT.value}:
+        if abstract and abstract.status in {AbstractStatus.PENDING.value}:
             abstract.status = AbstractStatus.REJECTED.value
             abstract.comment = comment
             abstract.save(update_fields=["status", "comment"])

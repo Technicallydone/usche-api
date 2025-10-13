@@ -291,158 +291,6 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
                 return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @swagger_auto_schema(
-        operation_description="Retrieve all paid abstracts for the organizer (where payment is pending)",
-        operation_summary="Retrieve Paid Abstracts (Payment Pending)",
-        method="get",
-        tags=["Abstract"],
-        responses={
-            200: openapi.Response(
-                description="Successfully retrieved",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'count': openapi.Schema(type=openapi.TYPE_INTEGER),
-                        'next': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'previous': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'results': openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    'abstract_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'sub_theme': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'title': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'authors': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'content': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'keywords': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'document': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'require_payment_email_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                    'sent_at': openapi.Schema(type=openapi.TYPE_STRING, format="date-time", nullable=True),
-                                    'comment': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'is_payment_done': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                    'payment': openapi.Schema(
-                                        type=openapi.TYPE_ARRAY,
-                                        items=openapi.Schema(
-                                            type=openapi.TYPE_OBJECT,
-                                            properties={
-                                                'payment_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                                'amount': openapi.Schema(type=openapi.TYPE_STRING),
-                                                'payment_slip': openapi.Schema(type=openapi.TYPE_STRING),
-                                                'comment': openapi.Schema(type=openapi.TYPE_STRING),
-                                                'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                                'timestamp': openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
-                                            }
-                                        )
-                                    ),
-                                    'user': openapi.Schema(
-                                        type=openapi.TYPE_OBJECT,
-                                        properties={
-                                            'user_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'affiliation': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'email': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'country': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'occupation': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'title': openapi.Schema(type=openapi.TYPE_STRING),
-                                            'invitation_status': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                            'invitation_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                        }
-                                    )
-                                }
-                            )
-                        ),
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while retrieving the abstract")
-                    }
-                ),
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                'conference_id',
-                openapi.IN_QUERY,
-                description="Conference ID",
-                type=openapi.TYPE_STRING,
-                required=True
-            ),
-            openapi.Parameter(
-                'search_query', openapi.IN_QUERY,
-                description="Search query for filtering abstracts",
-                type=openapi.TYPE_STRING,
-            )
-        ]
-    )
-    @action(detail=False, methods=['get'])
-    def paid_abstracts(self, request: HttpRequest):
-        user = cast(User, request.user)
-
-        if not user.is_authenticated and user.role != ROLE.ORGANIZER.value:
-            return Response(
-                {"detail": "You are not authorized to perform this task"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
-        conference_id = request.GET.get("conference_id")
-        search_query = request.GET.get("search_query")
-        
-        
-        if not conference_id:
-            return Response(
-                data={"detail": "Conference ID is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
-            
-            main_theme = MainTheme.get_theme_by_conference(conference=conference)
-            
-            if main_theme is None:
-                return Response(data={"detail": "Conference have no main theme"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            
-            abstracts = Abstract.get_pending_payment_abstracts(main_theme=main_theme, search_query=search_query)
-            paginator = PageNumberPagination()
-            page = paginator.paginate_queryset(abstracts, request)
-            
-            if page is not None:
-                response_serializer = PaidAbstractSerializer(page, many=True)
-                return paginator.get_paginated_response(response_serializer.data)
-            
-            response_serializer = PaidAbstractSerializer(abstracts, many=True)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Error while retrieving paid abstracts for user {user.user_id}: {e}")
-            return Response(
-                {"detail": "An unexpected error occurred"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
     
     @swagger_auto_schema(
         operation_description="Retrieve abstracts filtered by status for the organizer",
@@ -471,7 +319,6 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
                                     'keywords': openapi.Schema(type=openapi.TYPE_STRING),
                                     'document': openapi.Schema(type=openapi.TYPE_STRING),
                                     'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'require_payment_email_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
                                     'sent_at': openapi.Schema(type=openapi.TYPE_STRING, format="date-time", nullable=True),
                                     'comment': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
                                     'is_payment_done': openapi.Schema(type=openapi.TYPE_BOOLEAN),
@@ -619,7 +466,6 @@ class OrganizerAbstractViewSet(viewsets.ViewSet):
                                     'keywords': openapi.Schema(type=openapi.TYPE_STRING),
                                     'document': openapi.Schema(type=openapi.TYPE_STRING),
                                     'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'require_payment_email_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
                                     'sent_at': openapi.Schema(type=openapi.TYPE_STRING, format="date-time", nullable=True),
                                     'comment': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
                                     'is_payment_done': openapi.Schema(type=openapi.TYPE_BOOLEAN),

@@ -4,7 +4,6 @@ from typing import List, Tuple
 
 class AbstractStatus(Enum):
     PENDING = "Pending"
-    REQUIRE_PAYMENT = "Require Payment"
     REJECTED = "Rejected"
     APPROVED = "Approved"
 

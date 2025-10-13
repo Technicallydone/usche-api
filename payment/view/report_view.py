@@ -86,7 +86,6 @@ class ConferencePaymentReportViewSet(viewsets.ViewSet):
                                     'keywords': openapi.Schema(type=openapi.TYPE_STRING),
                                     'document': openapi.Schema(type=openapi.TYPE_STRING),
                                     'status': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'require_payment_email_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
                                     'sent_at': openapi.Schema(type=openapi.TYPE_STRING, format='date-time', nullable=True),
                                     'comment': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
                                     'is_payment_done': openapi.Schema(type=openapi.TYPE_BOOLEAN),

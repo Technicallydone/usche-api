@@ -310,7 +310,6 @@ CELERY_TASK_ROUTES = {
     'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
     # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
     'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
-    'abstracts.tasks.process_require_payment': {'queue': 'high_priority'},
     'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
     'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
 }
@@ -345,11 +344,6 @@ CELERY_BEAT_SCHEDULE = {
     # },
     'send_high_priority_email': {
         'task': 'user.tasks.send_high_priority_email',  
-        'schedule': timedelta(minutes=1),
-        'options': {'queue': 'high_priority', 'priority': 10},
-    },
-    'process_require_payment': {
-        'task': 'abstracts.tasks.process_require_payment',  
         'schedule': timedelta(minutes=1),
         'options': {'queue': 'high_priority', 'priority': 10},
     },

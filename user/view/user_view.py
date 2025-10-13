@@ -9,7 +9,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from user.enums.invitation_status import InvitationStatusEnum
 from user.models import User
-from user.serializers import RequestRegistration, UsersSerializer
+from user.serializers import RequestRegistration, UsersSerializer, UserResponseSerializer
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from conference.models import Conference
@@ -108,13 +108,13 @@ class UserViewSet(viewsets.ModelViewSet):
             )
             
     @swagger_auto_schema(
-        operation_description="List of all users (no pagination, with active status filter)",
-        operation_summary="All users (non-paginated, filterable)",
+        operation_description="Retrieve Users",
+        operation_summary="Retrieve all users",
         method="get",
         tags=["User"],
         responses={
             200: openapi.Response(
-                description="Successfully retrieved list of invitations",
+                description="Successfully retrieved list of users",
                 schema=openapi.Schema(
                     type=openapi.TYPE_OBJECT,
                     properties={
@@ -232,3 +232,93 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+    @swagger_auto_schema(
+        operation_description="List of all users (no pagination, with active status filter)",
+        operation_summary="All users (non-paginated, filterable)",
+        method="get",
+        tags=["User"],
+        responses={
+            200: openapi.Response(
+                description="Users retrieved successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'user_id': openapi.Schema(type=openapi.TYPE_STRING),
+                            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+                            'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+                            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
+                            'email': openapi.Schema(type=openapi.TYPE_STRING),
+                            'country': openapi.Schema(type=openapi.TYPE_STRING),
+                            'title': openapi.Schema(type=openapi.TYPE_STRING),
+                            'occupation': openapi.Schema(type=openapi.TYPE_STRING),
+                        }
+                    )
+                ),
+            ),
+            401: openapi.Response(
+                description="Unauthorized - User must be authenticated",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
+                    }
+                ),
+            ),
+            500: openapi.Response(
+                description="Internal Server Error",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while retrieving users")
+                    }
+                ),
+            ),
+        },
+        manual_parameters=[
+            openapi.Parameter(
+                'search_query', openapi.IN_QUERY,
+                description="Search query for filtering users",
+                type=openapi.TYPE_STRING,
+            ),
+            openapi.Parameter(
+                'is_active', openapi.IN_QUERY,
+                description="Filter users by active status: true, false, or leave empty for all",
+                type=openapi.TYPE_BOOLEAN
+            )
+        ]
+    )
+    @action(detail=False, methods=["get"], url_path="user-report")
+    def users_report(self, request: HttpRequest):
+        user = request.user
+
+        if not user.is_authenticated:
+            return Response(
+                data={"detail": "You are not authorized to view this resource"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        search_query = request.GET.get("search_query")
+        is_active_param = request.GET.get("is_active")
+
+        try:
+            users = User.user_report(search_query=search_query)
+
+            if is_active_param is not None:
+                if is_active_param.lower() == 'true':
+                    users = users.filter(is_active=True)
+                elif is_active_param.lower() == 'false':
+                    users = users.filter(is_active=False)
+
+            serializer = UserResponseSerializer(users, many=True)
+            return Response(data=serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error retrieving all users: {e}")
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

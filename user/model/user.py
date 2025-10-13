@@ -174,7 +174,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         
         if filter_type == InvitationStatusEnum.ALL.value:
             users = cls.objects.filter(filters).order_by('-created_at')
-            print(users)
             invitations = Invitation.objects.filter(invitation_filters)
             users_with_status = []
             for user in users:
@@ -200,3 +199,17 @@ class User(AbstractBaseUser, PermissionsMixin):
 
         else:
             raise ValueError("Invalid filter_type. Must be one of: 'ALL', 'INVITED', 'NOT_INVITED', 'INVITED_NOT_SENT'.")
+
+    @classmethod
+    def user_report(cls, search_query: str = None):
+        filters = Q()
+        
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(first_name__icontains=search_query) |
+                Q(middle_name__icontains=search_query) |
+                Q(last_name__icontains=search_query)
+            )
+        
+        return cls.objects.filter(filters).order_by('-created_at')
