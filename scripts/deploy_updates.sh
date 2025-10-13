@@ -38,8 +38,6 @@ echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
 # Step 6: Restart services
-echo "Reload Daemon"
-sudo systemctl daemon-reload
 
 echo "Restarting Gunicorn service: $SERVICE_NAME"
 sudo systemctl restart $SERVICE_NAME
