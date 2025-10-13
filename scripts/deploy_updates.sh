@@ -26,6 +26,10 @@ fi
 echo "Activating virtual environment..."
 source $VENV_ACTIVATE
 
+# Step 3.5: Purge old Celery tasks to avoid unregistered task errors
+echo "Purging pending Celery tasks..."
+celery -A usche_app purge -f  # replace 'usche_api' with your Django project name/module
+
 # Step 4: Run migrations
 echo "Running makemigrations..."
 python3 manage.py makemigrations
@@ -38,7 +42,6 @@ echo "Reloading systemd daemon..."
 sudo systemctl daemon-reload
 
 # Step 6: Restart services
-
 echo "Restarting Gunicorn service: $SERVICE_NAME"
 sudo systemctl restart $SERVICE_NAME
 
