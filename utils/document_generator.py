@@ -4,6 +4,7 @@ from io import BytesIO
 import tempfile
 import time
 import base64
+import uuid
 from xhtml2pdf import pisa
 from django.template.loader import render_to_string
 from certificate.enums.cert_purpose import CertificatePurpose
@@ -66,7 +67,7 @@ def generate_invitation_pdf(user: User, conference: Conference):
         return None
     
     
-def generate_certificate_pdf(user: User, conference: Conference, purpose=CertificatePurpose.ATTENDANCE.value):
+def generate_certificate_pdf(user: User, conference: Conference, purpose=CertificatePurpose.ATTENDANCE):
     """
     Generates a certificate PDF with embedded fonts and images.
 
@@ -94,7 +95,6 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "certificate_background": f"file://{background_path}" if background_path else None,
         }
 
-        # Font path injection using file://
         static_fonts = os.path.join(settings.STATIC_ROOT, "fonts")
         font_face_overrides = f"""
         <style>
@@ -104,21 +104,18 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             font-weight: 100 900;
             font-style: normal;
         }}
-
         @font-face {{
             font-family: "Raleway";
             src: url("file://{static_fonts}/Raleway/Raleway-Italic-VariableFont_wght.ttf") format("truetype");
             font-weight: 100 900;
             font-style: italic;
         }}
-
         @font-face {{
             font-family: "Monotype Corsiva";
             src: url("file://{static_fonts}/Monotype-Corsiva/Monotype-Corsiva-Regular-Italic.ttf") format("truetype");
             font-style: italic;
             font-weight: normal;
         }}
-
         @font-face {{
             font-family: "Californian FB";
             src: url("file://{static_fonts}/californian-fb/californian-fb.ttf") format("truetype");
@@ -127,36 +124,31 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         }}
         </style>
         """
-        
-        if purpose == CertificatePurpose.ATTENDANCE:
-            purpose_text = "active participation"
-        elif purpose == CertificatePurpose.PRESENTATION:
-            purpose_text = "abstract presentation"
-        else:
-            purpose_text = "active participation"
 
-        full_name = f"{user.title} {user.first_name} "
-        if user.middle_name:
-            full_name += f"{user.middle_name} "
-        full_name += user.last_name
+        if purpose == CertificatePurpose.ATTENDANCE:
+            purpose_text = "Active Participation"
+        elif purpose == CertificatePurpose.PRESENTATION:
+            purpose_text = "Abstract Presentation"
+        else:
+            purpose_text = "Active Participation"
 
         html_content = render_to_string("certificate_template.html", {
-            "full_name": f"{user.title} {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
+            "full_name": f"{user.title}. {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
             "images": images,
             "font_face_overrides": font_face_overrides,
             "purpose_text": purpose_text,
         })
 
-        # Define custom temp directory
-        temp_dir = "/var/www/usche/chromium-temp"
-        os.makedirs(temp_dir, exist_ok=True)  # create if doesn't exist
+        temp_dir = settings.CHROMIUM_TEMP_DIR
+        os.makedirs(temp_dir, exist_ok=True)
 
-        # Write HTML to a temporary file inside custom temp_dir
-        with tempfile.NamedTemporaryFile("w", suffix=".html", dir=temp_dir, delete=False, encoding="utf-8") as tmp_file:
-            tmp_file.write(html_content)
-            temp_html_path = tmp_file.name
+        temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
+        with open(temp_html_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
 
-        # Setup headless Chrome
+        logger.info(f"Using temporary directory for Chrome: {temp_dir}")
+        logger.info(f"Temporary HTML path: {temp_html_path}")
+
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
@@ -166,7 +158,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         try:
             driver.get(f"file://{temp_html_path}")
-            time.sleep(2)  # Allow full rendering
+            time.sleep(2)
 
             paper_width = 794 / 96
             paper_height = 1123 / 96

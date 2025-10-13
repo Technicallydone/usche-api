@@ -29,7 +29,7 @@ def generate_certificates_for_conference_task():
 
     # Fetch batch of users safely using SKIP LOCKED
     with transaction.atomic():
-        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=5)
+        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=50)
         if not users.exists():
             logger.info(f"No new users without certificates for conference {conference.conference_id}")
             return {"status": "success", "message": "No new users to process"}
@@ -60,7 +60,7 @@ def generate_certificates_for_conference_task():
                     pdf_bytes = generate_certificate_pdf(
                         user=u,
                         conference=conference,
-                        purpose=CertificatePurpose.ATTENDANCE.value
+                        purpose=CertificatePurpose.ATTENDANCE
                     )
                     if pdf_bytes:
                         filename = f"attendance/{u.first_name}_{u.last_name}.pdf"
@@ -83,7 +83,7 @@ def generate_certificates_for_conference_task():
                         pdf_bytes_pres = generate_certificate_pdf(
                             user=u,
                             conference=conference,
-                            purpose=CertificatePurpose.PRESENTATION.value
+                            purpose=CertificatePurpose.PRESENTATION
                         )
                         if pdf_bytes_pres:
                             filename_pres = f"presentation/{u.first_name}_{u.last_name}.pdf"
