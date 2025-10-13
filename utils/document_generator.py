@@ -1,11 +1,10 @@
 import os
 import logging
 from io import BytesIO
-import shutil
+import tempfile
 import time
 import base64
 import uuid
-from tempfile import mkdtemp
 from xhtml2pdf import pisa
 from django.template.loader import render_to_string
 from certificate.enums.cert_purpose import CertificatePurpose
@@ -80,6 +79,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         bytes: The generated PDF content as byte stream.
     """
     try:
+        # Prepare background and image paths
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
             if conference.certificate_background else None
@@ -153,11 +153,6 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-setuid-sandbox")
-
-        user_data_dir = mkdtemp(prefix="chrome-profile-", dir=temp_dir)
-        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
 
         driver = webdriver.Chrome(options=chrome_options)
 
@@ -181,11 +176,8 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         finally:
             driver.quit()
-
             if os.path.exists(temp_html_path):
                 os.remove(temp_html_path)
-            if os.path.exists(user_data_dir):
-                shutil.rmtree(user_data_dir, ignore_errors=True)
 
         return base64.b64decode(pdf_data["data"])
 
