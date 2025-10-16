@@ -38,7 +38,8 @@ ABSTRACT_DOCUMENT_URL = env('ABSTRACT_DOCUMENT_URL')
 PAYMENT_SLIP_URL = env('PAYMENT_SLIP_URL')
 
 TEMP_DIR = Path.home()
-CHROMIUM_TEMP_DIR = os.path.join(TEMP_DIR, "tmp", env('CHROMIUM_TEMP_DIR', default='chromium'))
+
+CHROMIUM_TEMP_DIR = TEMP_DIR / "tmp" / os.getenv("CHROMIUM_TEMP_DIR", "chromium")
 
 os.makedirs(CHROMIUM_TEMP_DIR, exist_ok=True)
 
