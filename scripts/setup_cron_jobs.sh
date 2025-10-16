@@ -32,6 +32,6 @@ add_cron_job() {
 }
 
 # Add cron job: every 12 hours
-add_cron_job "*/1 * * * * $BACKUP_SCRIPT >> $BACKUP_LOG 2>&1"
+add_cron_job "0 */12 * * * $BACKUP_SCRIPT >> $BACKUP_LOG 2>&1"
 
 echo "Backup cron job configured successfully."
