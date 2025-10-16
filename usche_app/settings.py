@@ -62,6 +62,8 @@ CORS_ALLOW_CREDENTIALS = True
 ALLOWED_HOSTS = [
     'conference.usche.ac.tz',
     'www.conference.usche.ac.tz',
+    'usche.ac.tz',
+    'www.usche.ac.tz'
     '64.227.139.214',
     '127.0.0.1',
     '0.0.0.0',
