@@ -164,11 +164,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         # ------------------ Chrome options ------------------
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new")  # modern headless mode
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument(f"--user-data-dir={temp_dir}")  # Ensure Chrome has permissions
-        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--no-sandbox")  # required when running as root
+        chrome_options.add_argument("--disable-dev-shm-usage")  # optional, avoids /dev/shm issues
+        chrome_options.add_argument(f"--user-data-dir={temp_dir}")  # must be writable
 
         driver = webdriver.Chrome(options=chrome_options)
         logger.info("Chrome WebDriver started")

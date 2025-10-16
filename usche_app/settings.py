@@ -37,7 +37,7 @@ SPONSOR_LOGO_BASE_URL = env('SPONSOR_LOGO_BASE_URL')
 ABSTRACT_DOCUMENT_URL = env('ABSTRACT_DOCUMENT_URL')
 PAYMENT_SLIP_URL = env('PAYMENT_SLIP_URL')
 
-TEMP_DIR = env('TEMP_DIR', default='/tmp')
+TEMP_DIR = env('TEMP_DIR', default='/var/tmp')
 CHROMIUM_TEMP_DIR = os.path.join(TEMP_DIR, env('CHROMIUM_TEMP_DIR', default='chromium'))
 
 os.makedirs(CHROMIUM_TEMP_DIR, exist_ok=True)
