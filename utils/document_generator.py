@@ -75,15 +75,12 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
     Args:
         user (User): The user receiving the certificate.
         conference (Conference): The conference details.
-        purpose (CertificatePurpose, optional): Purpose of the certificate.
 
     Returns:
-        bytes: The generated PDF content as byte stream, or None on failure.
+        bytes: The generated PDF content as byte stream.
     """
     try:
-        logger.info(f"Generating certificate for user {user.user_id} - {user.first_name} {user.last_name}")
-
-        # ------------------ Paths ------------------
+        # Prepare background and image paths
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
             if conference.certificate_background else None
@@ -99,7 +96,6 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "certificate_background": f"file://{background_path}" if background_path else None,
         }
 
-        # ------------------ Fonts ------------------
         static_fonts = os.path.join(settings.STATIC_ROOT, "fonts")
         font_face_overrides = f"""
         <style>
@@ -130,13 +126,13 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         </style>
         """
 
-        # ------------------ Purpose ------------------
-        purpose_text = {
-            CertificatePurpose.ATTENDANCE: "Active Participation",
-            CertificatePurpose.PRESENTATION: "Abstract Presentation"
-        }.get(purpose, "Active Participation")
+        if purpose == CertificatePurpose.ATTENDANCE:
+            purpose_text = "Active Participation"
+        elif purpose == CertificatePurpose.PRESENTATION:
+            purpose_text = "Abstract Presentation"
+        else:
+            purpose_text = "Active Participation"
 
-        # ------------------ Render HTML ------------------
         html_content = render_to_string("certificate_template.html", {
             "full_name": f"{user.title}. {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
             "images": images,
@@ -144,36 +140,27 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "purpose_text": purpose_text,
         })
 
-        # ------------------ Temporary HTML file ------------------
-        base_temp_dir = getattr(settings, "CHROMIUM_TEMP_DIR", "/tmp/chromium")
-        os.makedirs(base_temp_dir, exist_ok=True)
-
-        # Use a unique temp directory per PDF generation
-        temp_dir = tempfile.mkdtemp(dir=base_temp_dir)
-        logger.info(f"Temporary directory for Chrome: {temp_dir}")
+        temp_dir = settings.CHROMIUM_TEMP_DIR
+        os.makedirs(temp_dir, exist_ok=True)
 
         temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
-        logger.info(f"Written HTML to {temp_html_path}")
 
-        # ------------------ Chrome options ------------------
+        logger.info(f"Using temporary directory for Chrome: {temp_dir}")
+        logger.info(f"Temporary HTML path: {temp_html_path}")
+
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-setuid-sandbox")
-        chrome_options.add_argument(f"--user-data-dir={temp_dir}")
 
         driver = webdriver.Chrome(options=chrome_options)
-        logger.info("Chrome WebDriver started")
 
         try:
             driver.get(f"file://{temp_html_path}")
-            time.sleep(2)  # Wait for fonts/images to load
+            time.sleep(2)
 
-            # ------------------ Print PDF ------------------
             paper_width = 794 / 96
             paper_height = 1123 / 96
 
@@ -190,15 +177,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         finally:
             driver.quit()
-            logger.info("Chrome WebDriver quit")
             if os.path.exists(temp_html_path):
                 os.remove(temp_html_path)
-            if os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                logger.info(f"Temporary Chrome directory removed: {temp_dir}")
 
         return base64.b64decode(pdf_data["data"])
 
     except Exception as e:
-        logger.exception(f"Error generating certificate PDF for user {user.user_id}: {e}")
+        logger.error(f"Error generating certificate PDF: {e}", exc_info=True)
         return None
