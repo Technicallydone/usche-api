@@ -79,7 +79,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         bytes: The generated PDF content as byte stream, or None on failure.
     """
     try:
-        logger.info(f"Generating certificate for user {user.id} - {user.first_name} {user.last_name}")
+        logger.info(f"Generating certificate for user {user.user_id} - {user.first_name} {user.last_name}")
         # ------------------ Paths ------------------
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
@@ -207,5 +207,5 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         return base64.b64decode(pdf_data["data"])
 
     except Exception as e:
-        logger.exception(f"Error generating certificate PDF for user {user.id}: {e}")
+        logger.exception(f"Error generating certificate PDF for user {user.user_id}: {e}")
         return None
