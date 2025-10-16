@@ -76,15 +76,18 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         conference (Conference): The conference details.
 
     Returns:
-        bytes: The generated PDF content as byte stream.
+        bytes: The generated PDF content as byte stream, or None on failure.
     """
     try:
-        # Prepare background and image paths
+        logger.info(f"Generating certificate for user {user.id} - {user.first_name} {user.last_name}")
+        # ------------------ Paths ------------------
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
             if conference.certificate_background else None
         )
         image_dir = os.path.join(settings.MEDIA_ROOT, "usche")
+        logger.debug(f"Background path: {background_path}")
+        logger.debug(f"Image directory: {image_dir}")
 
         images = {
             "udom_logo": f"file://{os.path.join(image_dir, 'udom_logo.png')}",
@@ -95,6 +98,9 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "certificate_background": f"file://{background_path}" if background_path else None,
         }
 
+        logger.debug(f"Images dict: {images}")
+
+        # ------------------ Fonts ------------------
         static_fonts = os.path.join(settings.STATIC_ROOT, "fonts")
         font_face_overrides = f"""
         <style>
@@ -124,42 +130,56 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         }}
         </style>
         """
+        logger.debug(f"Font overrides: {font_face_overrides}")
 
+        # ------------------ Purpose ------------------
         if purpose == CertificatePurpose.ATTENDANCE:
             purpose_text = "Active Participation"
         elif purpose == CertificatePurpose.PRESENTATION:
             purpose_text = "Abstract Presentation"
         else:
             purpose_text = "Active Participation"
+        logger.debug(f"Certificate purpose: {purpose_text}")
 
+        # ------------------ Render HTML ------------------
         html_content = render_to_string("certificate_template.html", {
             "full_name": f"{user.title}. {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
             "images": images,
             "font_face_overrides": font_face_overrides,
             "purpose_text": purpose_text,
         })
+        logger.debug(f"HTML content length: {len(html_content)} characters")
 
-        temp_dir = settings.CHROMIUM_TEMP_DIR
+        # ------------------ Temporary HTML file ------------------
+        temp_dir = getattr(settings, "CHROMIUM_TEMP_DIR", "/tmp/chromium")
+        logger.info(f"Temporary directory for Chrome: {temp_dir}")
         os.makedirs(temp_dir, exist_ok=True)
 
         temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
+        logger.info(f"Written HTML to {temp_html_path}")
+        if not os.path.exists(temp_html_path):
+            logger.error(f"Temporary HTML file does not exist: {temp_html_path}")
 
-        logger.info(f"Using temporary directory for Chrome: {temp_dir}")
-        logger.info(f"Temporary HTML path: {temp_html_path}")
-
+        # ------------------ Chrome options ------------------
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument(f"--user-data-dir={temp_dir}")  # Ensure Chrome has permissions
+        chrome_options.add_argument("--disable-dev-shm-usage")
 
         driver = webdriver.Chrome(options=chrome_options)
+        logger.info("Chrome WebDriver started")
 
         try:
             driver.get(f"file://{temp_html_path}")
-            time.sleep(2)
+            logger.info(f"Navigated to HTML file in Chrome: {temp_html_path}")
+            time.sleep(2)  # Wait for fonts/images to load
+            logger.debug("Waiting for 2 seconds for resources to load")
 
+            # ------------------ Print PDF ------------------
             paper_width = 794 / 96
             paper_height = 1123 / 96
 
@@ -173,14 +193,19 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
                 "marginLeft": 0,
                 "marginRight": 0,
             })
+            logger.info("PDF generated successfully via Chrome DevTools Protocol")
 
         finally:
             driver.quit()
+            logger.info("Chrome WebDriver quit")
             if os.path.exists(temp_html_path):
                 os.remove(temp_html_path)
+                logger.info(f"Temporary HTML file removed: {temp_html_path}")
+            else:
+                logger.warning(f"Temporary HTML file was already removed: {temp_html_path}")
 
         return base64.b64decode(pdf_data["data"])
 
     except Exception as e:
-        logger.error(f"Error generating certificate PDF: {e}", exc_info=True)
+        logger.exception(f"Error generating certificate PDF for user {user.id}: {e}")
         return None
