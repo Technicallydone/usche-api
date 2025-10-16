@@ -76,43 +76,57 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
     Args:
         user (User): The user receiving the certificate.
         conference (Conference): The conference details.
+        purpose (CertificatePurpose): The purpose of the certificate.
 
     Returns:
-        bytes: The generated PDF content as byte stream.
+        bytes: The generated PDF content as byte stream, or None on failure.
     """
     import shutil
     from pathlib import Path
     import stat
+    import time
+    import uuid
+    import base64
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from django.template.loader import render_to_string
 
     try:
         # -------------------------
-        # Prepare background path
-        # -------------------------
-        background_path = (
-            os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
-            if conference.certificate_background else None
-        )
-
-        # -------------------------
         # Snap-safe images folder
         # -------------------------
-        image_src_dir = Path(settings.MEDIA_ROOT) / "usche"
         image_snap_dir = Path.home() / "tmp/usche_images"
         image_snap_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy images to Snap-accessible folder
-        image_files = [
+        # -------------------------
+        # Copy logo images
+        # -------------------------
+        logos = [
             "udom_logo.png",
             "usche_logo.png",
             "uhuru_na_umoja.png",
             "dvc-arc-signature.png",
             "dr-mreno-signature.png"
         ]
-        for img_file in image_files:
-            src = image_src_dir / img_file
-            dst = image_snap_dir / img_file
-            if src.exists():
-                shutil.copy(src, dst)
+        for logo in logos:
+            src_logo = Path(settings.MEDIA_ROOT) / "usche" / logo
+            dst_logo = image_snap_dir / logo
+            if src_logo.exists():
+                shutil.copy(src_logo, dst_logo)
+
+        # -------------------------
+        # Copy certificate background if exists
+        # -------------------------
+        if conference.certificate_background:
+            src_bg = Path(settings.MEDIA_ROOT) / conference.certificate_background.name
+            dst_bg = image_snap_dir / src_bg.name
+            if src_bg.exists():
+                shutil.copy(src_bg, dst_bg)
+                background_path = f"file://{dst_bg}"
+            else:
+                background_path = None
+        else:
+            background_path = None
 
         # -------------------------
         # Images dict
@@ -123,7 +137,7 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "uhuru_na_umoja": f"file://{image_snap_dir}/uhuru_na_umoja.png",
             "dvc_signature": f"file://{image_snap_dir}/dvc-arc-signature.png",
             "dr_meremo_signature": f"file://{image_snap_dir}/dr-mreno-signature.png",
-            "certificate_background": f"file://{background_path}" if background_path else None,
+            "certificate_background": background_path,
         }
 
         # -------------------------
