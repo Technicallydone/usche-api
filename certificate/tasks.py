@@ -29,7 +29,7 @@ def generate_certificates_for_conference_task():
 
     # Fetch batch of users safely using SKIP LOCKED
     with transaction.atomic():
-        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=50)
+        users = Certificate.claim_users_for_certificates(conference=conference, batch_size=10)
         if not users.exists():
             logger.info(f"No new users without certificates for conference {conference.conference_id}")
             return {"status": "success", "message": "No new users to process"}
