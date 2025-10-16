@@ -1,7 +1,7 @@
 import os
 import logging
 from io import BytesIO
-import tempfile
+import shutil
 import time
 import base64
 import uuid
@@ -74,12 +74,14 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
     Args:
         user (User): The user receiving the certificate.
         conference (Conference): The conference details.
+        purpose (CertificatePurpose): Type of certificate.
 
     Returns:
         bytes: The generated PDF content as byte stream, or None on failure.
     """
     try:
         logger.info(f"Generating certificate for user {user.user_id} - {user.first_name} {user.last_name}")
+
         # ------------------ Paths ------------------
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
@@ -97,7 +99,6 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "dr_meremo_signature": f"file://{os.path.join(image_dir, 'dr-mreno-signature.png')}",
             "certificate_background": f"file://{background_path}" if background_path else None,
         }
-
         logger.debug(f"Images dict: {images}")
 
         # ------------------ Fonts ------------------
@@ -151,24 +152,26 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         logger.debug(f"HTML content length: {len(html_content)} characters")
 
         # ------------------ Temporary HTML file ------------------
-        temp_dir = getattr(settings, "CHROMIUM_TEMP_DIR", "/tmp/chromium")
-        logger.info(f"Temporary directory for Chrome: {temp_dir}")
+        base_temp_dir = getattr(settings, "CHROMIUM_TEMP_DIR", "/tmp/chromium")
+        os.makedirs(base_temp_dir, exist_ok=True)
+
+        # Create a unique subdirectory for this task
+        temp_dir = os.path.join(base_temp_dir, str(uuid.uuid4()))
         os.makedirs(temp_dir, exist_ok=True)
+        logger.info(f"Temporary directory for Chrome: {temp_dir}")
 
         temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
         logger.info(f"Written HTML to {temp_html_path}")
-        if not os.path.exists(temp_html_path):
-            logger.error(f"Temporary HTML file does not exist: {temp_html_path}")
 
         # ------------------ Chrome options ------------------
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")  # modern headless mode
+        chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")  # required when running as root
-        chrome_options.add_argument("--disable-dev-shm-usage")  # optional, avoids /dev/shm issues
-        chrome_options.add_argument(f"--user-data-dir={temp_dir}")  # must be writable
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument(f"--user-data-dir={temp_dir}")  # unique per task
 
         driver = webdriver.Chrome(options=chrome_options)
         logger.info("Chrome WebDriver started")
@@ -198,11 +201,16 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         finally:
             driver.quit()
             logger.info("Chrome WebDriver quit")
+
+            # Clean up temp HTML file
             if os.path.exists(temp_html_path):
                 os.remove(temp_html_path)
                 logger.info(f"Temporary HTML file removed: {temp_html_path}")
-            else:
-                logger.warning(f"Temporary HTML file was already removed: {temp_html_path}")
+
+            # Clean up the unique temp directory
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info(f"Temporary Chrome directory removed: {temp_dir}")
 
         return base64.b64decode(pdf_data["data"])
 
