@@ -3,6 +3,7 @@ import logging
 from io import BytesIO
 import tempfile
 import shutil
+import stat
 import time
 import base64
 import uuid
@@ -146,6 +147,9 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
+            
+        
+        os.chmod(temp_html_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
 
         logger.info(f"Using temporary directory for Chrome: {temp_dir}")
         logger.info(f"Temporary HTML path: {temp_html_path}")
