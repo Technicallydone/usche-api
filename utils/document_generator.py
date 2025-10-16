@@ -1,7 +1,7 @@
 import os
 import logging
 from io import BytesIO
-import tempfile
+from pathlib import Path
 import shutil
 import stat
 import time
@@ -81,15 +81,6 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
     Returns:
         bytes: The generated PDF content as byte stream, or None on failure.
     """
-    import shutil
-    from pathlib import Path
-    import stat
-    import time
-    import uuid
-    import base64
-    from selenium import webdriver
-    from selenium.webdriver.chrome.options import Options
-    from django.template.loader import render_to_string
 
     try:
         # -------------------------
