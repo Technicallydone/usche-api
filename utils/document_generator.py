@@ -80,23 +80,55 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
     Returns:
         bytes: The generated PDF content as byte stream.
     """
+    import shutil
+    from pathlib import Path
+    import stat
+
     try:
-        # Prepare background and image paths
+        # -------------------------
+        # Prepare background path
+        # -------------------------
         background_path = (
             os.path.join(settings.MEDIA_ROOT, conference.certificate_background.name)
             if conference.certificate_background else None
         )
-        image_dir = os.path.join(settings.MEDIA_ROOT, "usche")
 
+        # -------------------------
+        # Snap-safe images folder
+        # -------------------------
+        image_src_dir = Path(settings.MEDIA_ROOT) / "usche"
+        image_snap_dir = Path.home() / "tmp/usche_images"
+        image_snap_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copy images to Snap-accessible folder
+        image_files = [
+            "udom_logo.png",
+            "usche_logo.png",
+            "uhuru_na_umoja.png",
+            "dvc-arc-signature.png",
+            "dr-mreno-signature.png"
+        ]
+        for img_file in image_files:
+            src = image_src_dir / img_file
+            dst = image_snap_dir / img_file
+            if src.exists():
+                shutil.copy(src, dst)
+
+        # -------------------------
+        # Images dict
+        # -------------------------
         images = {
-            "udom_logo": f"file://{os.path.join(image_dir, 'udom_logo.png')}",
-            "usche_logo": f"file://{os.path.join(image_dir, 'usche_logo.png')}",
-            "uhuru_na_umoja": f"file://{os.path.join(image_dir, 'uhuru_na_umoja.png')}",
-            "dvc_signature": f"file://{os.path.join(image_dir, 'dvc-arc-signature.png')}",
-            "dr_meremo_signature": f"file://{os.path.join(image_dir, 'dr-mreno-signature.png')}",
+            "udom_logo": f"file://{image_snap_dir}/udom_logo.png",
+            "usche_logo": f"file://{image_snap_dir}/usche_logo.png",
+            "uhuru_na_umoja": f"file://{image_snap_dir}/uhuru_na_umoja.png",
+            "dvc_signature": f"file://{image_snap_dir}/dvc-arc-signature.png",
+            "dr_meremo_signature": f"file://{image_snap_dir}/dr-mreno-signature.png",
             "certificate_background": f"file://{background_path}" if background_path else None,
         }
 
+        # -------------------------
+        # Fonts
+        # -------------------------
         static_fonts = os.path.join(settings.STATIC_ROOT, "fonts")
         font_face_overrides = f"""
         <style>
@@ -127,6 +159,9 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         </style>
         """
 
+        # -------------------------
+        # Purpose text
+        # -------------------------
         if purpose == CertificatePurpose.ATTENDANCE:
             purpose_text = "Active Participation"
         elif purpose == CertificatePurpose.PRESENTATION:
@@ -134,6 +169,9 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
         else:
             purpose_text = "Active Participation"
 
+        # -------------------------
+        # Render HTML
+        # -------------------------
         html_content = render_to_string("certificate_template.html", {
             "full_name": f"{user.title}. {user.first_name} {user.middle_name + ' ' if user.middle_name else ''}{user.last_name}",
             "images": images,
@@ -141,19 +179,24 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
             "purpose_text": purpose_text,
         })
 
+        # -------------------------
+        # Temp folder for Chromium
+        # -------------------------
         temp_dir = settings.CHROMIUM_TEMP_DIR
         os.makedirs(temp_dir, exist_ok=True)
 
         temp_html_path = os.path.join(temp_dir, f"cert_{uuid.uuid4().hex}.html")
         with open(temp_html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
-            
-        
+
         os.chmod(temp_html_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
 
         logger.info(f"Using temporary directory for Chrome: {temp_dir}")
         logger.info(f"Temporary HTML path: {temp_html_path}")
 
+        # -------------------------
+        # Chrome headless
+        # -------------------------
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
