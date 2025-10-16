@@ -153,16 +153,11 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
         logger.info(f"Using temporary directory for Chrome: {temp_dir}")
         logger.info(f"Temporary HTML path: {temp_html_path}")
-        logger.info(f"Permissions: {oct(os.stat(temp_html_path).st_mode)}")
 
         chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--headless")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--allow-file-access-from-files")
-        chrome_options.add_argument("--disable-web-security")
-        chrome_options.add_argument("--enable-local-file-accesses")
 
         driver = webdriver.Chrome(options=chrome_options)
 
