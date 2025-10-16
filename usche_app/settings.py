@@ -40,6 +40,8 @@ PAYMENT_SLIP_URL = env('PAYMENT_SLIP_URL')
 TEMP_DIR = env('TEMP_DIR', default='/tmp')
 CHROMIUM_TEMP_DIR = os.path.join(TEMP_DIR, env('CHROMIUM_TEMP_DIR', default='chromium'))
 
+os.makedirs(CHROMIUM_TEMP_DIR, exist_ok=True)
+
 BEEM_API_KEY = env('BEEM_API_KEY')
 BEEM_SECRET_KEY = env('BEEM_SECRET_KEY')
 BEEM_BASE_URL = env('BEEM_BASE_URL')
