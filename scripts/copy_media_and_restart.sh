@@ -1,19 +1,57 @@
 #!/bin/bash
 set -e
 
-SRC_DIR="/home/mcharo/usche/backups"
-DEST_DIR="/home/mcharo/usche/assets/media"
+# -----------------------------
+# CONFIG
+# -----------------------------
+ARCHIVE="/Users/mcharo/projects/usche/backup_2026-01-30_12-00-01.tar.gz"
+DEST_DIR="/Users/mcharo/projects/usche/assets/media"
+TMP_DIR="/tmp/usche_restore_$(date +%s)"
 
-# Create destination directory if it doesn't exist
-if [ ! -d "$DEST_DIR" ]; then
-  echo "Creating destination directory: $DEST_DIR"
-  mkdir -p "$DEST_DIR"
+# -----------------------------
+# PRE-CHECKS
+# -----------------------------
+if [ ! -f "$ARCHIVE" ]; then
+  echo "❌ Backup archive not found: $ARCHIVE"
+  exit 1
 fi
 
-echo "Copying media files from $SRC_DIR to $DEST_DIR excluding .gz and .bak files..."
-rsync -av --exclude='*.gz' --exclude='*.bak' "$SRC_DIR"/ "$DEST_DIR"/
+# -----------------------------
+# CREATE DIRECTORIES
+# -----------------------------
+echo "Creating temp directory: $TMP_DIR"
+mkdir -p "$TMP_DIR"
 
-echo "Setting permissions to 755 on $DEST_DIR..."
+echo "Creating destination directory: $DEST_DIR"
+mkdir -p "$DEST_DIR"
+
+# -----------------------------
+# EXTRACT ARCHIVE
+# -----------------------------
+echo "Extracting archive..."
+tar -xzvf "$ARCHIVE" -C "$TMP_DIR"
+
+# -----------------------------
+# COPY FILES (EXCLUDING .bak & .sql)
+# -----------------------------
+echo "Copying extracted files to assets (excluding .bak and .sql)..."
+
+rsync -av \
+  --exclude='*.bak' \
+  --exclude='*.sql' \
+  "$TMP_DIR"/ \
+  "$DEST_DIR"/
+
+# -----------------------------
+# SET PERMISSIONS
+# -----------------------------
+echo "Setting permissions to 755..."
 chmod -R 755 "$DEST_DIR"
 
-echo "Done. All files copied and permissions set."
+# -----------------------------
+# CLEAN UP
+# -----------------------------
+echo "Cleaning up temp files..."
+rm -rf "$TMP_DIR"
+
+echo "✅ Done! Archive extracted and media restored to $DEST_DIR"
