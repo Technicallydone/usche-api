@@ -16,8 +16,8 @@ After=network.target
 [Service]
 User=root
 Group=www-data
-WorkingDirectory=/var/www/usche/usche-api
-ExecStart=/var/www/usche/env/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock usche_app.wsgi:application
+WorkingDirectory=/var/www/usche-api
+ExecStart=/var/www/env/bin/gunicorn --access-logfile - --workers 3 --bind unix:/run/gunicorn.sock usche_app.wsgi:application
 Restart=on-failure
 RestartSec=5
 

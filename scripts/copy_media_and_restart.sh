@@ -4,8 +4,8 @@ set -e
 # -----------------------------
 # CONFIG
 # -----------------------------
-ARCHIVE="/Users/mcharo/projects/usche/backup_2026-01-30_12-00-01.tar.gz"
-DEST_DIR="/Users/mcharo/projects/usche/assets/media"
+ARCHIVE="/var/www/backup_2026-01-30_12-00-01.tar.gz"
+DEST_DIR="/var/www/assets/media"
 TMP_DIR="/tmp/usche_restore_$(date +%s)"
 
 # -----------------------------
