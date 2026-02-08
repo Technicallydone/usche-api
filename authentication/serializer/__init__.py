@@ -4,3 +4,4 @@ from .request_sign_out_serializer import SignOutSerializer
 from .request_activate_account import RequestActivateAccount
 from .request_new_token_serializer import RequestNewToken
 from .change_password_serailizer import RequestChangePasswordSerailizer
+from .request_registration import RequestRegistration

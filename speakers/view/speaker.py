@@ -3,8 +3,6 @@ from django.http import FileResponse, Http404
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 import logging
 
 from speakers.models import Speaker
@@ -15,26 +13,6 @@ logger = logging.getLogger(__name__)
 class SpeakerViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
 
-    @swagger_auto_schema(
-        operation_description="View Speaker image",
-        operation_summary="Speaker image",
-        method="get",
-        tags=["Speaker"],
-        responses={
-            200: "Image response", 
-            400: "Invalid input data",
-            404: "Image not found"
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                'image_id',
-                openapi.IN_PATH,
-                description="The UUID of the image to retrieve",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ]
-    )
     @action(detail=False, methods=['get'], url_path='speaker-image/(?P<image_id>[^/]+)')
     def speaker_image(self, request, image_id):
         try:

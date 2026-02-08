@@ -3,125 +3,21 @@ from typing import cast
 from django.http import   HttpRequest
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 from rest_framework.decorators import action
 from abstracts.models import Abstract
 from attendee.models import Attendee
 from conference.models import Conference, TargetGroup
 from payment.models import Payment
 from theme.models import MainTheme, SubTheme
-from user.enums.role import ROLE
 from user.models import User
 
 logger = logging.getLogger(__name__)
 
 class ConferenceStatsViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated,]
-    
-    
-    @swagger_auto_schema(
-        operation_description="Retrieve conference statistics",
-        operation_summary="Conference Stats",
-        method="get",
-        tags=["Conference Stats"],
-        responses={
-            200: openapi.Response(
-                description="Successfully conference stats retrieved",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "stats": openapi.Schema(
-                            type=openapi.TYPE_OBJECT,
-                            properties={
-                                "conference": openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "conference_name": openapi.Schema(type=openapi.TYPE_STRING, example="Annual Research Conference 2025"),
-                                        "start_date": openapi.Schema(type=openapi.TYPE_STRING, format="date", example="2025-08-01"),
-                                        "end_date": openapi.Schema(type=openapi.TYPE_STRING, format="date", example="2025-08-05"),
-                                        "capacity": openapi.Schema(type=openapi.TYPE_INTEGER, example=500),
-                                        "venue": openapi.Schema(type=openapi.TYPE_STRING, example="Kigali Convention Centre"),
-                                        "total_sub_themes": openapi.Schema(type=openapi.TYPE_INTEGER, example=5),
-                                        "total_target_groups": openapi.Schema(type=openapi.TYPE_INTEGER, example=8),
-                                    }
-                                ),
-                                "attendees": openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "total_users": openapi.Schema(type=openapi.TYPE_INTEGER, example=1500),
-                                        "total_attendees": openapi.Schema(type=openapi.TYPE_INTEGER, example=1200),
-                                    }
-                                ),
-                                "abstracts": openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "total_abstracts": openapi.Schema(type=openapi.TYPE_INTEGER, example=300),
-                                        "total_paid_abstracts": openapi.Schema(type=openapi.TYPE_INTEGER, example=200),
-                                        "total_unpaid_abstracts": openapi.Schema(type=openapi.TYPE_INTEGER, example=100),
-                                        "total_approved_abstracts": openapi.Schema(type=openapi.TYPE_INTEGER, example=180),
-                                    }
-                                ),
-                                "payments": openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "total_payments": openapi.Schema(type=openapi.TYPE_INTEGER, example=220),
-                                        "total_join_requests": openapi.Schema(type=openapi.TYPE_INTEGER, example=250),
-                                        "total_pending_join_requests": openapi.Schema(type=openapi.TYPE_INTEGER, example=30),
-                                        "total_abstract_payments": openapi.Schema(type=openapi.TYPE_INTEGER, example=200),
-                                    }
-                                ),
-                            }
-                        )
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid input",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Invalid input")
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="Document not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Document with given id not found")
-                    }
-                ),
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_QUERY,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ],
-    )
+  
     @action(detail=False, methods=['get'])
     def statisticts(self, request: HttpRequest):
-        user = cast(User, request.user)
-        
-        allowed_roles = [ROLE.ORGANIZER.value, ROLE.ADMIN.value, ROLE.BURSAR.value]
-        if user.role not in allowed_roles and not user.is_staff:
-            return Response(data={"detail": "You are forbidden to read this information"}, status=status.HTTP_403_FORBIDDEN)
-        
         conference_id = request.GET.get('conference_id')
         
         

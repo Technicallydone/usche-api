@@ -6,7 +6,6 @@ from django.conf import settings
 
 from conference.models import Conference
 from user.enums.invitation_status import InvitationStatusEnum
-from user.enums.role import ROLE
 from user.models import User 
 from django.db.models import Q, QuerySet
 
@@ -57,7 +56,6 @@ class Invitation(models.Model):
         filter_type = InvitationStatusEnum.validate(filter_type)
 
         filters = Q(is_superuser=False, is_active=True)
-        filters &= ~Q(role=ROLE.ADMIN.value)
         
         invitation_filters = Q(conference=conference)
 

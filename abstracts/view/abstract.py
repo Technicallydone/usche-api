@@ -5,8 +5,6 @@ from typing import cast
 from django.http import  Http404, HttpRequest
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 from rest_framework.decorators import action
 from abstracts.models import Abstract
 from abstracts.serializers import AbstractSubmissionSerializer, AbstractSerializer, RequestRetrieveSerializer
@@ -20,60 +18,6 @@ logger = logging.getLogger(__name__)
 class AbstractViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated,]
     
-    @swagger_auto_schema(
-        operation_description="Retrieve document for the authenticated user by providing document ID",
-        operation_summary="Abstract document",
-        method="get",
-        tags=["Abstract"],
-        responses={
-            200: openapi.Response(
-                description="Successfully retrieved document",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Document retrieved successfully"),
-                        'file_content': openapi.Schema(type=openapi.TYPE_STRING, example="Base64 encoded content of the document")
-                    }
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid input",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Invalid input")
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="Document not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Document with given id not found")
-                    }
-                ),
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                'document_id',
-                openapi.IN_PATH,
-                description="The UUID of the document to retrieve",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ]
-    )
     @action(detail=False, methods=['get'], url_path='abstract-document/(?P<document_id>[^/]+)')
     def read_document(self, request: HttpRequest, document_id):
         if not request.user.is_authenticated:
@@ -115,46 +59,6 @@ class AbstractViewSet(viewsets.ViewSet):
             logger.error(f"Error while retrieving document: {e}")
             return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @swagger_auto_schema(
-        operation_description="Retrieve abstract to view status and comment",
-        operation_summary="Retrieve abstract",
-        method="post",
-        tags=["Abstract"],
-        request_body=RequestRetrieveSerializer,
-        responses={
-            200: openapi.Response(
-                description="Successfully retrieved",
-                schema=AbstractSerializer()
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="Not Found - No abstract found for the user",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="You do not have any abstract submitted for this conference")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while retrieving the abstract")
-                    }
-                ),
-            ),
-        }
-    )
     @action(detail=False, methods=['post'])
     def retrieve_abstract(self, request: HttpRequest):
 
@@ -198,51 +102,6 @@ class AbstractViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @swagger_auto_schema(
-        operation_description="Submit abstract by providing necessary details like title, sub theme ID, content, keywords for the authenticated user",
-        operation_summary="Abstract Submission",
-        method="post",
-        tags=["Abstract"],
-        request_body=AbstractSubmissionSerializer,
-        responses={
-            201: openapi.Response(
-                description="Successfully abstract saved",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid input",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Invalid input")
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while submitting the abstract")
-                    }
-                ),
-            ),
-        }
-    )
     @action(detail=False, methods=['post'])
     def submit_abstract(self, request: HttpRequest):
 

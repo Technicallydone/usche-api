@@ -1,1 +1,1 @@
-from .auth_view import AuthenticationViewSet, SignOutViewSet
+from .auth_view import AuthenticationViewSet

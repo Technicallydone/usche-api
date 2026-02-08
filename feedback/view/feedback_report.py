@@ -8,11 +8,8 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 from feedback.serializers import QuestionReportSerializer
-from user.enums.role import ROLE
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -21,73 +18,8 @@ logger = logging.getLogger(__name__)
 class FeedbackReportViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
-    @swagger_auto_schema(
-        method='get',
-        operation_summary="Generate feedback report by conference ID",
-        operation_description="Returns a report summarizing multiple-choice option counts and free text responses for a given conference.",
-        tags=["Feedback"],
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_QUERY,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ],
-        responses={
-            200: openapi.Response(
-                description="Feedback report generated successfully",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_ARRAY,
-                    items=openapi.Schema(
-                        type=openapi.TYPE_OBJECT,
-                        properties={
-                            "question_id": openapi.Schema(type=openapi.TYPE_STRING),
-                            "question_text": openapi.Schema(type=openapi.TYPE_STRING),
-                            "type": openapi.Schema(
-                                type=openapi.TYPE_STRING,
-                                enum=["multiple-choice", "text"]
-                            ),
-                            "options": openapi.Schema(
-                                type=openapi.TYPE_ARRAY,
-                                items=openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "option_id": openapi.Schema(type=openapi.TYPE_STRING),
-                                        "option_text": openapi.Schema(type=openapi.TYPE_STRING),
-                                        "count": openapi.Schema(type=openapi.TYPE_INTEGER)
-                                    }
-                                )
-                            ),
-                            "answers": openapi.Schema(
-                                type=openapi.TYPE_ARRAY,
-                                items=openapi.Schema(
-                                    type=openapi.TYPE_OBJECT,
-                                    properties={
-                                        "text": openapi.Schema(type=openapi.TYPE_STRING),
-                                        "submitted_at": openapi.Schema(type=openapi.TYPE_STRING, format="date-time")
-                                    }
-                                )
-                            )
-                        }
-                    )
-                )
-            ),
-            400: openapi.Response(description="Bad request: missing conference_id"),
-            500: openapi.Response(description="Internal server error"),
-        }
-    )
     @action(detail=False, methods=["get"], url_path="conference-report")
     def get_conference_report(self, request: HttpRequest):
-        user = cast(User, request.user)
-
-        if not request.user.is_authenticated and user.role not in [ROLE.ORGANIZER.value, ROLE.BURSAR.value, ROLE.ADMIN.value]:
-            return Response(
-                {"detail": "You are not authorized to perform this task"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
         conference_id = request.GET.get("conference_id")
 
         if not conference_id:

@@ -3,7 +3,6 @@ from django.db import transaction
 from django.core.mail import BadHeaderError
 from user.models import User
 from feedback.models import FeedbackEmailLog
-from user.enums.role import ROLE
 from utils.email_templates.usche_feedback import usche_feedback_template
 from conference.models import Conference
 from utils.send_email import send_feedback_email
@@ -27,7 +26,6 @@ def request_feedback_task():
         # Select active attendees who have NOT received feedback email for this conference
         users_to_email = User.objects.filter(
             is_active=True,
-            role=ROLE.ATTENDEE.value
         ).exclude(
             feedback_emails__conference=conference
         )

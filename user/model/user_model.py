@@ -6,12 +6,84 @@ from django.db import models
 from conference.models import Conference
 from theme.models import MainTheme, SubTheme
 from user.enums.invitation_status import InvitationStatusEnum
-from user.enums.role import ROLE
 from user.enums.title import TITLE_ENUM
-from .base_user_manager import UserManager
+from user.enums.user_role_action_enum import UserRoleActionEnum
+from user.model.role_model import Role
 from utils.validator import validate_phone_number
 from django.utils import timezone
 from django.db.models import Q
+from django.db import transaction
+from django.contrib.auth.models import BaseUserManager
+from django.core.exceptions import ValidationError
+from rest_framework.exceptions import NotFound
+
+class UserManager(BaseUserManager["User"]):
+    def create_user(
+        self, 
+        first_name: str, 
+        last_name: str, 
+        middle_name: str = None, 
+        title: str = None, 
+        email: str = None, 
+        phone_number: str = None, 
+        password: str = None, 
+        **extra_fields
+    ):
+        if not email:
+            raise ValidationError(message="The Email field is required.")
+        if not phone_number:
+            raise ValidationError("The Phone Number field is required.")
+        if not password:
+            raise ValidationError("The password is required")
+
+        email = self.normalize_email(email)
+
+        user = self.model(
+            first_name=first_name,
+            middle_name=middle_name,
+            last_name=last_name,
+            phone_number=phone_number,
+            email=email,
+            title=title,
+            **extra_fields
+        )
+        user.set_password(password)
+        user.save(using=self._db)
+
+        return user
+
+    @transaction.atomic
+    def create_superuser(
+        self, 
+        first_name: str, 
+        last_name: str, 
+        middle_name: str = None, 
+        email: str = None, 
+        title: str = None, 
+        phone_number: str = None, 
+        password: str = None, 
+        **extra_fields
+    ):
+        extra_fields.setdefault("is_admin", True)
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValidationError("Superuser must have is_superuser=True.")
+        if extra_fields.get("is_staff") is not True:
+            raise ValidationError("Superuser must have is_staff=True.")
+
+        return self.create_user(
+            first_name=first_name,
+            middle_name=middle_name,
+            last_name=last_name,
+            email=email,
+            title=title,
+            phone_number=phone_number,
+            password=password,
+            **extra_fields
+        )
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -19,14 +91,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30, null=True, blank=True)
     middle_name = models.CharField(max_length=30, null=True, blank=True)
     last_name = models.CharField(max_length=30, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, unique=True, validators=[validate_phone_number])
+    phone_number = models.CharField(max_length=15, validators=[validate_phone_number])
     email = models.EmailField(max_length=100, unique=True, null=False, blank=False, validators=[EmailValidator(message="Please enter a valid email address")])
     country = models.CharField(max_length=20, null=False, blank=False)
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    role = models.CharField(max_length=20, choices=ROLE.choices())
+    role = models.ForeignKey(Role, null=True, blank=True, on_delete=models.SET_NULL)
     
     resend_activation_email = models.BooleanField(default=False)
     has_sent_activation_email = models.BooleanField(default=False)
@@ -42,7 +114,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ['first_name', 'last_name', 'phone_number', 'title']
     
     class Meta:
-        db_table = 'user'
+        db_table = 'users'
         app_label = 'user'
 
     def __str__(self) -> str:
@@ -56,6 +128,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def full_name(self) -> str:
         return f"{self.first_name} {self.middle_name} {self.last_name}"
+    
+    @property
+    def invitation_status(self) -> bool:
+        return self.has_sent_activation_email
+    
+    @property
+    def invitation_sent(self):
+        return self.has_sent_activation_email
     
     @classmethod
     def users_without_abstract_and_payment(cls, conference: Conference):
@@ -78,7 +158,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         # Exclude users who have either abstracts or payments for this conference
         return cls.objects.exclude(
             Q(user_id__in=users_with_payments)
-        ).filter(is_active=True, is_superuser=False, role=ROLE.ATTENDEE.value)
+        ).filter(is_active=True, is_superuser=False)
     
     @classmethod
     def total_users(cls):
@@ -138,9 +218,62 @@ class User(AbstractBaseUser, PermissionsMixin):
             country=country,
             password=password,
             occupation=occupation,
-            role=ROLE.ATTENDEE.value
         )
         user.set_password(raw_password=password)
+        user.save()
+        return user
+    
+    @classmethod
+    def search_users(cls, search_query: str = None, staff: bool = None):
+        """
+        Return users filtered by full name and/or staff status.
+
+        Args:
+            name (str, optional): Partial or full name to search (case-insensitive). Defaults to None.
+            staff (bool, optional): 
+                True = staff only
+                False = non-staff only
+                None = ignore staff filter
+        Returns:
+            QuerySet: filtered User queryset
+        """
+        filters = Q(is_superuser=False)
+        
+        if staff is True:
+            filters &= Q(is_staff=True)
+        elif staff is False:
+            filters &= Q(is_staff=False)
+        
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(first_name__icontains=search_query) |
+                Q(middle_name__icontains=search_query) |
+                Q(last_name__icontains=search_query)
+            )
+
+        return cls.objects.filter(filters).order_by('-created_at')
+    
+    @classmethod
+    def change_role(cls, user_id: uuid.UUID, role_id: uuid.UUID, action: UserRoleActionEnum):
+        """
+        Assign or unassign a role to a user.
+        """
+        user = cls.objects.filter(user_id=user_id).first()
+        if user is None:
+            raise NotFound(detail="User with the given ID does not exist.")
+
+        role = Role.objects.filter(id=role_id).first()
+        if not role:
+            raise NotFound(detail="Role with the given ID does not exist.")
+
+        if action == UserRoleActionEnum.ASSIGN:
+            user.role = role
+        elif action == UserRoleActionEnum.UNASSIGN:
+            user.role = None
+        else:
+            raise ValidationError("Invalid action. Must be 'assign' or 'unassign'.")
+
         user.save()
         return user
     
@@ -160,7 +293,6 @@ class User(AbstractBaseUser, PermissionsMixin):
         filter_type = InvitationStatusEnum.validate(filter_type)
 
         filters = Q(is_superuser=False, is_active=is_active)
-        filters &= ~Q(role=ROLE.ADMIN.value)
         
         invitation_filters = Q(conference=conference)
         
@@ -198,7 +330,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             return [{'user': user, 'invitation_status': True, 'invitation_sent': False} for user in invited_not_sent_users]
 
         else:
-            raise ValueError("Invalid filter_type. Must be one of: 'ALL', 'INVITED', 'NOT_INVITED', 'INVITED_NOT_SENT'.")
+            raise ValidationError("Invalid filter_type. Must be one of: 'ALL', 'INVITED', 'NOT_INVITED', 'INVITED_NOT_SENT'.")
 
     @classmethod
     def user_report(cls, search_query: str = None):

@@ -1,21 +1,27 @@
 import logging
 from typing import cast
-import uuid
 from django.core.signing import SignatureExpired
-from rest_framework import authentication, permissions, status, viewsets
-from authentication.enums.error_code import ActivationErrorCodes
-from authentication.serializers import RequestSignInSerializer, TokenResponseSerializer, SignOutSerializer, RequestActivateAccount, RequestNewToken, RequestChangePasswordSerailizer
+from rest_framework import permissions, status, viewsets
+from authentication.serializers import (
+    RequestSignInSerializer,
+    TokenResponseSerializer,
+    SignOutSerializer,
+    RequestActivateAccount,
+    RequestNewToken,
+    RequestChangePasswordSerailizer,
+    RequestRegistration,
+)
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.auth import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
-from authentication.tasks import process_reset_password_email
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, ValidationError
+from rest_framework.request import Request
+from authentication.tasks import process_registration, process_reset_password_email
+from conference.models import Conference
 from usche_app import settings
-from user.model.user import User
+from user.model.user_model import User
 from utils.beem_sms import BeemSMSClient
 from utils.send_email import send_activation_email
 from utils.access_token import generate_token, verify_token
@@ -31,62 +37,46 @@ class AuthenticationViewSet(viewsets.ViewSet):
         JWTAuthentication,
     ]
     
-
-    @swagger_auto_schema(
-        operation_description="Change password after reset password email sent to the user by providing token and new password",
-        operation_summary="Change password on forgot password",
-        method="post",
-        tags=["Authentication"],
-        request_body=RequestChangePasswordSerailizer,
-        responses={
-            200: openapi.Response(
-                description="Password successfully changed",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
+    @action(detail=False, methods=['post'], url_path="register")
+    def register(self, request: Request):
+        
+        serializer = RequestRegistration(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        
+        try:
+            conference = Conference.get_latest_conference()
+            
+            if not conference.registration_open:
+                logger.warning("403: Registration is closed for the current conference.")
+                return Response(
+                    data={"detail": "Registration closed. For any inquiries, please contact info@usche.ac.tz or call +255 700 123 456."},
+                    status=status.HTTP_403_FORBIDDEN
                 )
-            ),
-            400: openapi.Response(
-                description="Invalid token",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING, enum=[
-                            ActivationErrorCodes.INVALID_TOKEN, 
-                            ActivationErrorCodes.MISSING_TOKEN,
-                            ActivationErrorCodes.TOKEN_EXPIRED,
-                            ActivationErrorCodes.USER_NOT_FOUND
-                        ]),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="User not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        }
-    )
-    @action(detail=False, methods=['post'])
-    def change_password(self, request, email = None):
+            
+            process_registration.delay(validated_data)
+            
+            return Response(
+                data={"detail": "You have successfully registered. A confirmation email has been sent to you for activation."},
+                status=status.HTTP_201_CREATED
+            )
+        
+        except ValidationError as ve:
+            logger.error(f"Validation error: {str(ve)}", exc_info=True)
+            return Response(
+                data={"detail": f"Validation error: {str(ve)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        except Exception as e:
+            logger.error(f"Error occurred during registration: {str(e)}", exc_info=True)
+            return Response(
+                data={"detail": "An internal server error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='change-password')
+    def change_password(self, request: Request, email = None):
         
         request_serializer = RequestChangePasswordSerailizer(data=request.data)
         request_serializer.is_valid(raise_exception=True)
@@ -120,61 +110,6 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @swagger_auto_schema(
-        operation_description="Request reset password email on forgot login password",
-        operation_summary="Forgot password",
-        method="post",
-        tags=["Authentication"],
-        responses={
-            200: openapi.Response(
-                description="Resent password request email successfully sent",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Bad Request | Email tot provided",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="User not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter(
-                'email',
-                openapi.IN_PATH,
-                description="Valid email",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ]
-    )
     @action(detail=False, methods=['post'], url_path='forgot-password/(?P<email>[^/]+)')
     def forgot_password(self, request, email=None):
         if email is None:
@@ -200,60 +135,8 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-    
-    @swagger_auto_schema(
-        operation_description="Request a new token using the provided activation token.",
-        operation_summary="Request New Token",
-        method="post",
-        tags=["Authentication"],
-        request_body=RequestNewToken,
-        responses={
-            200: openapi.Response(
-                description="Token successfully sent",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Invalid token",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING, enum=[
-                            ActivationErrorCodes.INVALID_TOKEN, 
-                            ActivationErrorCodes.MISSING_TOKEN
-                        ]),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="User not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        }
-    )
-    @action(detail=False, methods=['post'])
-    def new_activation_email(self, request):
+    @action(detail=False, methods=['post'], url_path='new-activation-email')
+    def new_activation_email(self, request: Request):
         """
         Sent new activation email
         """
@@ -319,61 +202,8 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    
-    @swagger_auto_schema(
-        operation_description="Activate a user account using the provided activation token.",
-        operation_summary="Activate Account",
-        method="post",
-        tags=["Authentication"],
-        request_body=RequestActivateAccount,
-        responses={
-            200: openapi.Response(
-                description="Account successfully activated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Invalid token",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING, enum=[
-                            ActivationErrorCodes.INVALID_TOKEN, 
-                            ActivationErrorCodes.MISSING_TOKEN,
-                            ActivationErrorCodes.TOKEN_EXPIRED
-                        ]),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            404: openapi.Response(
-                description="User not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'error_code': openapi.Schema(type=openapi.TYPE_STRING),
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        }
-    )
-    @action(detail=False, methods=['post'])
-    def activate_account(self, request):
+    @action(detail=False, methods=['post'], url_path='activate-account')
+    def activate_account(self, request: Request):
         """
         Activate the user account by verifying the activation token.
         """
@@ -412,45 +242,8 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @swagger_auto_schema(
-        operation_description="Request login by submitting username and password",
-        operation_summary="Request Login",
-        method="post",
-        tags=["Authentication"],
-        request_body=RequestSignInSerializer,
-        responses={
-            200: TokenResponseSerializer,
-            401: openapi.Response(
-                description="Invalid credentials",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            403: openapi.Response(
-                description="Inactive account",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        }
-    )
-    @action(detail=False, methods=['post'])
-    def sign_in(self, request):
+    @action(detail=False, methods=['post'], url_path='sign-in')
+    def sign_in(self, request: Request):
         serializer = RequestSignInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -470,8 +263,12 @@ class AuthenticationViewSet(viewsets.ViewSet):
             token.payload["user"] = {
                 "id": str(user.user_id),
                 "email": user.email,
-                "full_name": user.full_name,
-                "roles": [user.role],
+                "fullName": user.full_name,
+                "isSuperUser": user.is_superuser,
+                "role": {
+                    "id": str(user.role.id) if user.role else None,
+                    "name": user.role.name if user.role else None
+                },
             }
 
             token_data = {
@@ -494,51 +291,9 @@ class AuthenticationViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.exception(e, exc_info=True)
             return Response({"detail": "An unexpected error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-class SignOutViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    serializer_class = SignOutSerializer
     
-    @swagger_auto_schema(
-        operation_description="Sign out the authenticated user and blacklist the token",
-        operation_summary="Sign out",
-        tags=["Authentication"],
-        method="post",
-        request_body=SignOutSerializer,
-        responses={
-            200: openapi.Response(
-                description="Successul sign out",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            400: openapi.Response(
-                description="Bad request",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "detail": openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-            500: openapi.Response(
-                description="Internal server error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                )
-            ),
-        }
-    )
-    @action(detail=False, methods=["post"])
-    def sign_out(self, request):
+    @action(detail=False, methods=["post"], url_path="sign-out")
+    def sign_out(self, request: Request):
         serializer = SignOutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -551,3 +306,4 @@ class SignOutViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"failed to sign out: {e}", exc_info=True)
             return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

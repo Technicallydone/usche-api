@@ -5,8 +5,6 @@ from typing import cast
 from django.http import FileResponse, Http404, HttpRequest
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 from conference.models import ConferenceScheduleDocument
 from conference.models import Conference
 from conference.serializers import ConferenceDetailSerializer, RequestJoinConferenceSerializer
@@ -16,7 +14,7 @@ from django.db import transaction
 
 from payment.models import Payment
 from usche_app import settings
-from user.model.user import User
+from user.model.user_model import User
 from utils.qr_code_generator import generate_qr_code
 
 logger = logging.getLogger(__name__)
@@ -24,63 +22,6 @@ logger = logging.getLogger(__name__)
 class ConferenceViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
     
-    @swagger_auto_schema(
-        operation_description="Request to join the conference by uploading a payment slip.",
-        operation_summary="Join Conference",
-        method="post",
-        tags=["Conference"],
-        request_body=RequestJoinConferenceSerializer,
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_QUERY,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ],
-        responses={
-            200: openapi.Response(
-                description="Successfully joined the conference and payment recorded.",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Payment slip uploaded and conference joined successfully.")
-                    }
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid input | User has pending payment",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(
-                            type=openapi.TYPE_STRING, 
-                            example="Invalid input | You have a pending payment that requires approval. Please be patient while we process your payment slip. If you are an agent, please don't hesitate to contact support."
-                        )
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="Conference not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Conference not found")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while joining the conference")
-                    }
-                ),
-            ),
-        }
-    )
     @action(detail=False, methods=['post'])
     def join(self, request: HttpRequest):
         """Handles user requests to join a conference by uploading a payment slip."""
@@ -144,45 +85,6 @@ class ConferenceViewSet(viewsets.ViewSet):
             logger.error(f"Failed to upload payment slip for joining the conference: {e}")
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @swagger_auto_schema(
-        operation_description="Retrieve the last inserted conference, including its sponsors, speakers, attendees, themes, and more.",
-        operation_summary="Get Last Inserted Conference",
-        method="get",
-        tags=["Conference"],
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_QUERY,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=False
-            )
-        ],
-        responses={
-            200: openapi.Response(
-                description="Successfully retrieved the last inserted conference details.",
-                schema=ConferenceDetailSerializer
-            ),
-            404: openapi.Response(
-                description="No conferences found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="No conferences found")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while fetching the conference details")
-                    }
-                ),
-            ),
-        }
-    )
     @action(detail=False, methods=['get'])
     def read(self, request: HttpRequest):
         year = request.GET.get('year')
@@ -199,21 +101,6 @@ class ConferenceViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @swagger_auto_schema(
-        operation_description="Download the official conference program PDF by ID.",
-        operation_summary="Download Conference PDF",
-        method="get",
-        tags=["Conference"],
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_PATH,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ]
-    )
     @action(detail=False, methods=["get"], url_path="conference_schedule/(?P<conference_id>[^/.]+)/download-pdf")
     def download_conference_pdf(self, request, conference_id=None):
         try:
@@ -229,21 +116,6 @@ class ConferenceViewSet(viewsets.ViewSet):
         except ConferenceScheduleDocument.DoesNotExist:
             raise Http404("PDF not found.")
 
-    @swagger_auto_schema(
-        operation_description="Generate a QR code that links to the conference program PDF download.",
-        operation_summary="Generate QR Code for Conference Schedule PDF",
-        method="get",
-        tags=["Conference"],
-        manual_parameters=[
-            openapi.Parameter(
-                name="conference_id",
-                in_=openapi.IN_PATH,
-                description="UUID of the conference",
-                type=openapi.TYPE_STRING,
-                required=True
-            )
-        ]
-    )
     @action(detail=False, methods=["get"], url_path="conference_schedule/(?P<conference_id>[^/.]+)/qr-code")
     def conference_schedule_qr(self, request: HttpRequest, conference_id=None):
         

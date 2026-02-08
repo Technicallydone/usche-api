@@ -10,11 +10,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from invitation.models import Invitation
 from invitation.serializers import InvitationUserSerializer, SendInvitationSerializer
 from conference.models import Conference
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
 
 from user.enums.invitation_status import InvitationStatusEnum
-from user.enums.role import ROLE
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -33,74 +30,9 @@ class InvitationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return None  
     
-    @swagger_auto_schema(
-        operation_description="Add list of users to queue for the cron job to send invitations to the selected users",
-        operation_summary="Add user to Queue",
-        method="post",
-        tags=["Invitation"],
-        request_body=SendInvitationSerializer,
-        responses={
-            200: openapi.Response(
-                description="User added successfully"
-            ),
-            400: openapi.Response(
-                description="Bad Request - Invalid input",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Invalid input")
-                    }
-                ),
-            ),
-            401: openapi.Response(
-                description="Unauthorized - User must be authenticated",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
-                    }
-                ),
-            ),
-            403: openapi.Response(
-                description="Forbidden - Conference has already ended",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="The conference has already ended, you are not allowed to invite people.")
-                    }
-                ),
-            ),
-            404: openapi.Response(
-                description="User or Conference not found",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="User or Conference not found")
-                    }
-                ),
-            ),
-            500: openapi.Response(
-                description="Internal Server Error",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="An error occurred while adding users to queue")
-                    }
-                ),
-            ),
-        }
-    )
     @action(detail=False, methods=['post'])
     def send_invitations(self, request: HttpRequest):
         """Add users to queue for sending invitations"""
-        organizer = cast(User, request.user)
-
-        if not request.user.is_authenticated or organizer.role != ROLE.ORGANIZER.value:
-            return Response(
-                data={"detail": "Authentication credentials were not provided"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-        
         request_serializer = SendInvitationSerializer(data=request.data)
         request_serializer.is_valid(raise_exception=True)
 
@@ -144,60 +76,6 @@ class InvitationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @swagger_auto_schema(
-        operation_description="List of all invited users for a specific conference with invitation status.",
-        operation_summary="Retrieve invited users by conference",
-        method="get",
-        tags=["Invitation"],
-        responses={
-            200: openapi.Response(
-                description="Successfully retrieved list of invitations",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'count': openapi.Schema(type=openapi.TYPE_INTEGER),
-                        'next': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'previous': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                        'results': openapi.Schema(
-                            type=openapi.TYPE_ARRAY,
-                            items=openapi.Schema(
-                                type=openapi.TYPE_OBJECT,
-                                properties={
-                                    'user_id': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'first_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'last_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'phone_number': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'email': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'country': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'occupation': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'title': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
-                                    'occupation': openapi.Schema(type=openapi.TYPE_STRING),
-                                    'invitation_status': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                    'invitation_sent': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                    'affiliation': openapi.Schema(type=openapi.TYPE_BOOLEAN),
-                                }
-                            )
-                        ),
-                    }
-                ),
-            ),
-            400: openapi.Response(
-                description="Bad Request - Missing or invalid parameters"
-            ),
-            404: openapi.Response(
-                description="Not Found - Conference not found"
-            ),
-            500: openapi.Response(
-                description="Internal Server Error"
-            ),
-        },
-        manual_parameters=[
-            openapi.Parameter('conference_id', openapi.IN_QUERY, description="ID of the conference", type=openapi.TYPE_STRING),
-            openapi.Parameter('filter_type', openapi.IN_QUERY, description="Filter invitations by status", type=openapi.TYPE_STRING, enum=[status.value for status in InvitationStatusEnum]),
-            openapi.Parameter('search_query', openapi.IN_QUERY, description="Search for users by name", type=openapi.TYPE_STRING),
-        ]
-    )
     @action(detail=False, methods=["get"])
     def invitation_list(self, request: HttpRequest):
         """
