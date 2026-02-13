@@ -1,0 +1,1 @@
+from .email.tasks import send_email_task

@@ -1,23 +1,33 @@
-# views.py or any Python file
+# utils/test_email.py
 
-from django.core.mail import send_mail
-from django.conf import settings
+from services.email.tasks import send_email_task
 
-def send_simple_email():
-    subject = 'Test Email'
-    message = 'This is a test email from Django.'
-    from_email = settings.DEFAULT_FROM_EMAIL
-    recipient_list = ['ramadhani.mbaga@udom.ac.tz']
-    
-    send_mail(
-        subject,
-        message,
-        from_email,
-        recipient_list,
-        fail_silently=False,
+def send_test_email():
+    subject = "Test Email from USChE"
+    recipient = "godfrey.steven@codeblock.co.tz"
+    greeting = "Hello Godfrey,"
+    lines = [
+        "Thank you for joining the USChE community.",
+        "We’ve built something special for you. Explore our resources!"
+    ]
+    salutations = ["Best regards,", "The USChE Team"]
+    button_text = "Get Started"
+    button_url = "https://usche.udom.ac.tz/dashboard"
+    footer_text = "© 2026 USChE - University of Dodoma"
+
+    # Call the Celery task
+    send_email_task.delay(
+        subject=subject,
+        to=recipient,
+        greeting=greeting,
+        lines=lines,
+        salutations=salutations,
+        button_text=button_text,
+        button_url=button_url,
+        footer_text=footer_text
     )
 
 
-# Call the function
-if __name__ == '__main__':
-    send_simple_email()
+# Run test
+if __name__ == "__main__":
+    send_test_email()

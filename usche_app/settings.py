@@ -106,7 +106,8 @@ INSTALLED_APPS = [
     "payment",
     "invitation",
     "certificate",
-    "feedback"
+    "feedback",
+    "services"
 ]
 
 AUTH_USER_MODEL = "user.User"
@@ -311,25 +312,7 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 MAIL_TOKEN = env('MAIL_TOKEN')
 MAIL_ENDPOINT = env('MAIL_ENDPOINT')
 
-CELERY_TASK_ROUTES = {
-    'authentication.tasks.process_reset_password_email': {'queue': 'high_priority'},
-    # 'user.tasks.send_deadline_reminder_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
-    # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
-    'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
-    'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
-    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
-}
-
-
 CELERY_TASK_DEFAULT_QUEUE = 'default'
-
-# CELERY_TASK_QUEUES = {
-#     'high_priority': {'exchange': 'high_priority', 'routing_key': 'high_priority'},
-#     'low_priority': {'exchange': 'low_priority', 'routing_key': 'low_priority'},
-#     'default': {'exchange': 'default', 'routing_key': 'default'},
-# }
 
 CELERY_TASK_QUEUES = (
     Queue('high_priority', exchange='high_priority', routing_key='high_priority'),
@@ -344,12 +327,29 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_DEFAULT_RETRY_DELAY = 5
 CELERY_TASK_MAX_RETRIES = 3
 
+CELERY_TASK_ROUTES = {
+    'authentication.tasks.process_reset_password_email': {'queue': 'high_priority'},
+    # 'user.tasks.send_deadline_reminder_high_priority_email': {'queue': 'high_priority'}, 
+    'user.tasks.send_high_priority_email': {'queue': 'high_priority'}, 
+    'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
+    # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
+    'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
+    'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
+    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
+    'services.tasks.send_email_task': {'queue': 'high_priority'},
+}
+
 CELERY_BEAT_SCHEDULE = {
     # 'send_deadline_reminder_high_priority_email': {
     #     'task': 'user.tasks.send_deadline_reminderhigh_priority_email',  
     #     'schedule': timedelta(days=3),
     #     'options': {'queue': 'high_priority', 'priority': 10},
     # },
+    'send_email_task': {
+        'task': 'services.tasks.send_email_task',  
+        'schedule': timedelta(minutes=1),
+        'options': {'queue': 'high_priority', 'priority': 10},
+    },
     'send_high_priority_email': {
         'task': 'user.tasks.send_high_priority_email',  
         'schedule': timedelta(minutes=1),
