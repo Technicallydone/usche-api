@@ -95,7 +95,7 @@ class InvitationViewSet(viewsets.ModelViewSet):
         """Add users to queue for sending invitations"""
         organizer = cast(User, request.user)
 
-        if not request.user.is_authenticated or organizer.role != ROLE.ORGANIZER.value:
+        if not request.user.is_authenticated:
             return Response(
                 data={"detail": "Authentication credentials were not provided"},
                 status=status.HTTP_401_UNAUTHORIZED

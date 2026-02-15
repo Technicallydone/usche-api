@@ -14,6 +14,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from authentication.tasks import process_reset_password_email
+from services.email.tasks import send_email_task
 from usche_app import settings
 from user.model.user import User
 from utils.beem_sms import BeemSMSClient
@@ -86,40 +87,73 @@ class AuthenticationViewSet(viewsets.ViewSet):
         }
     )
     @action(detail=False, methods=['post'])
-    def change_password(self, request, email = None):
-        
+    def change_password(self, request, email=None):
         request_serializer = RequestChangePasswordSerailizer(data=request.data)
         request_serializer.is_valid(raise_exception=True)
         validated_data = request_serializer.validated_data
-        
+
         token = validated_data.get("token")
-        
         if not token:
-            return Response({"error_code": "MISSING_TOKEN", "detail": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response(
+                {"error_code": "MISSING_TOKEN", "detail": "Token is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
+            # Verify token and get user_id
             user_id = verify_token(token=token)
-            
             user = User.get_user_by_id(user_id=user_id)
-            
+
             if user is None:
-                return Response(data={"error_code": "USER_NOT_FOUND", "detail": "User with given email does not exist"}, status=status.HTTP_404_NOT_FOUND)
-            
+                return Response(
+                    {"error_code": "USER_NOT_FOUND", "detail": "User with given email does not exist"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Update password
             user.set_password(raw_password=validated_data.get("new_password"))
             user.save(update_fields=["password"])
-            return Response({"detail": "Password changes successfully, you can login to your password"}, status=status.HTTP_200_OK)
+
+            # Send notification email
+            send_email_task.delay(
+                subject="Your Password Has Been Changed",
+                to=user.email,
+                greeting=f"Hello {user.first_name},",
+                lines=[
+                    "Your account password has been successfully changed.",
+                    "If you did not initiate this change, please reset your password immediately or contact support."
+                ],
+                salutations=["Best regards,", "The USChE Team"],
+                button_text="Login to Your Account",
+                button_url=f"{settings.FRONTEND_BASE_URL}/auth",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
+
+            return Response(
+                {"detail": "Password changed successfully. You can now log in with your new password."},
+                status=status.HTTP_200_OK
+            )
 
         except ValueError:
-            return Response({"error_code": "INVALID_TOKEN", "detail": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error_code": "INVALID_TOKEN", "detail": "Invalid token."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         except SignatureExpired as e:
             logger.error(f"Expired token: {e}", exc_info=True)
-            return Response({"error_code": "TOKEN_EXPIRED", "detail": "Activation token has expired. Please request a new one."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error_code": "TOKEN_EXPIRED", "detail": "Activation token has expired. Please request a new one."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         except Exception as e:
-            logger.exception("Error while activating user.", exc_info=e)
-            return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            logger.exception("Error while changing password.", exc_info=e)
+            return Response(
+                {"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @swagger_auto_schema(
         operation_description="Request reset password email on forgot login password",
         operation_summary="Forgot password",
@@ -255,70 +289,68 @@ class AuthenticationViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def new_activation_email(self, request):
         """
-        Sent new activation email
+        Resend activation email.
         """
-        request_serializer = RequestNewToken(data=request.data)
-        request_serializer.is_valid(raise_exception=True)
-        
-        validated_data = request_serializer.validated_data
-        token = validated_data.get("token")
 
-        if not token:
-            return Response({"error_code": "MISSING_TOKEN", "detail": "Token is required."}, status=status.HTTP_400_BAD_REQUEST)
-        
+        serializer = RequestNewToken(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data.get("email")
+
         try:
-            
-            sms = BeemSMSClient()
-            
-            user_id = verify_token(token=token, max_age=31_536_000)
-            
-            user = User.objects.get(user_id=user_id)
-            
+            user = User.objects.get(email=email)
+
             if user.is_active:
-                return Response({"error_code": "USER_ALREADY_ACTIVE", "detail": "User is already active."}, status=status.HTTP_400_BAD_REQUEST)
-
-            try:
-                send_activation_email(user)
-                token = generate_token(user=user)
-                
-                try:
-                    message = (
-                        f"Dear {user.title} {user.last_name},\n\n"
-                        "Your registration is successful. Please click the link below to activate your account:\n\n"
-                        f"link: {settings.FRONTEND_BASE_URL}/activate/{token}"
-                    )
-
-
-                    sms_response = sms.send_sms(
-                        message=message,
-                        recipients=[user.phone_number]
-                    )
-
-                    logger.info(f"SMS sent successfully: {sms_response}")
-                except Exception as sms_error:
-                    logger.error(f"SMS sending failed: {str(sms_error)}", exc_info=True)
-                
                 return Response(
-                    data={"detail": "A new activation email has been sent."}, 
-                    status=status.HTTP_201_CREATED
+                    {
+                        "error_code": "USER_ALREADY_ACTIVE",
+                        "detail": "User is already active."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
                 )
-            except BadHeaderError as bhe:
-                logger.error(f"Email sending failed due to BadHeaderError: {str(bhe)}", exc_info=True)
-                return Response(data={"detail": "Invalid email header. Please contact support."}, status=status.HTTP_400_BAD_REQUEST)
-            except Exception as e:
-                logger.error(f"Email sending failed: {str(e)}", exc_info=True)
-                return Response(data={"detail": "Failed to send activation email. Please try again."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        except ValueError:
-            return Response({"error_code": "INVALID_TOKEN", "detail": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        except User.DoesNotExist:
-            return Response({"error_code": "USER_NOT_FOUND", "detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        except Exception as e:
-            logger.exception("Error while activating user.", exc_info=e)
-            return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+            # Generate fresh activation token
+            token = generate_token(user=user)
+
+            # Send activation email asynchronously
+            send_email_task.delay(
+                subject="Activate Your USChE Account",
+                to=user.email,
+                greeting=f"Hello {user.first_name},",
+                lines=[
+                    "You requested a new activation link.",
+                    "Please click the button below to activate your account."
+                ],
+                salutations=["Best regards,", "The USChE Team"],
+                button_text="Activate Account",
+                button_url=f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
+
+            return Response(
+                {
+                    "detail": "If the account exists and is not activated, a new activation email has been sent."
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except User.DoesNotExist:
+            return Response(
+                {
+                    "detail": "If the account exists and is not activated, a new activation email has been sent."
+                },
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            logger.exception("Error while resending activation email.")
+            return Response(
+                {
+                    "error_code": "INTERNAL_SERVER_ERROR",
+                    "detail": "An unexpected error occurred."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @swagger_auto_schema(
         operation_description="Activate a user account using the provided activation token.",

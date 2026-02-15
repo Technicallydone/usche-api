@@ -156,7 +156,7 @@ class AbstractViewSet(viewsets.ViewSet):
         }
     )
     @action(detail=False, methods=['post'])
-    def retrieve_abstract(self, request: HttpRequest):
+    def mine(self, request: HttpRequest):
 
         if not request.user.is_authenticated:
             return Response(
@@ -165,11 +165,9 @@ class AbstractViewSet(viewsets.ViewSet):
             )
 
         user = cast(User, request.user)
-        request_serializer = RequestRetrieveSerializer(data=request.data)
-        request_serializer.is_valid(raise_exception=True)
 
         try:
-            abstract = Abstract.retrieve_abstract(user=user, conference_id=request_serializer.validated_data.get("conference_id"))
+            abstract = Abstract.retrieve_abstract(user=user)
             
             
             if abstract is None:

@@ -142,12 +142,13 @@ class Abstract(models.Model):
 
     @classmethod
     @transaction.atomic
-    def mark_as_approved(cls, abstract_id: uuid.UUID):
+    def mark_as_approved(cls, abstract_id: uuid.UUID, comment: str):
         """Approve an abstract if payment is done."""
         abstract = cls.objects.filter(abstract_id=abstract_id).select_for_update().first()
         
         abstract.status = AbstractStatus.APPROVED.value
-        abstract.save(update_fields=["status"])
+        abstract.comment = comment
+        abstract.save(update_fields=["status", "comment"])
         return abstract
     
     @classmethod
@@ -155,8 +156,8 @@ class Abstract(models.Model):
         return cls.objects.filter(abstract_id=abstract_id).first()
     
     @classmethod
-    def retrieve_abstract(cls, conference_id: uuid.UUID, abstract_id: uuid.UUID = None, user: User = None):
-        filters = Q(sub_theme__theme__conference__conference_id=conference_id)
+    def retrieve_abstract(cls, abstract_id: uuid.UUID = None, user: User = None):
+        filters = Q()
 
         if user:
             filters &= Q(user=user)

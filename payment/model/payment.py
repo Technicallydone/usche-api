@@ -27,6 +27,7 @@ class Payment(models.Model):
         choices=PaymentStatus.choices(),
         default=PaymentStatus.default(),
     )
+    rejected_by = models.ForeignKey(User, on_delete=models.SET_NULL, related_name="approved_payments", null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True, editable=False)
 
     class Meta:
@@ -68,6 +69,22 @@ class Payment(models.Model):
     @classmethod
     def get_join_request_payments(cls):
         return cls.objects.filter(status=PaymentStatus.PENDING.value, abstract__isnull=True)
+    
+    @classmethod
+    def filter_payment(cls, conference: Conference, search_query: str = None, status: str = None):
+        filters = Q(conference=conference)
+        
+        if status and status != "All":
+            filters &= Q(status=status)
+        
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(user__first_name__icontains=search_query) |
+                Q(user__middle_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query)
+            )
+        return cls.objects.filter(filters).order_by('-timestamp')
     
     @classmethod
     def get_approved(cls, conference: Conference, search_query: str = None):

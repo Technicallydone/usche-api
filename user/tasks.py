@@ -14,67 +14,12 @@ from utils.send_email import  send_activation_email, send_reminder_email
 import logging
 from django.utils.timezone import now
 from django.utils import timezone
-
 from utils.access_token import generate_token
 from utils.uniode_strip import strip_unicode
 
 
 
 logger = logging.getLogger(__name__)
-
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=5, retry_kwargs={'max_retries': 5})
-def process_registration(self, validated_data: Dict):
-    sms = BeemSMSClient()
-    
-    try:
-        with transaction.atomic():
-            user = User.create_user(
-                title=validated_data.get('title'),
-                affiliation=validated_data.get('affiliation'),
-                first_name=validated_data.get('first_name'),
-                last_name=validated_data.get('last_name'),
-                phone_number=validated_data.get('phone_number'),
-                email=validated_data.get('email'),
-                country=validated_data.get('country'),
-                password=validated_data.get('password'),
-                middle_name=validated_data.get('middle_name', None),
-                occupation=validated_data.get('occupation')
-            )
-
-            # send_activation_email(user=user)
-            token = generate_token(user=user)
-            
-
-            send_activation_email(user=user)
-            
-            try:
-                message = (
-                    f"Dear {user.title} {user.last_name},\n\n"
-                    f"Your registration is successful. Activate your account here:\n\n"
-                    f"{settings.FRONTEND_BASE_URL}/activate/{token}"
-                )
-
-
-                sms_response = sms.send_sms(
-                    message=strip_unicode(message),
-                    recipients=[user.phone_number]
-                )
-
-                logger.info(f"SMS sent successfully: {sms_response}")
-            except Exception as sms_error:
-                logger.error(f"SMS sending failed: {str(sms_error)}", exc_info=True)
-            
-            
-
-    except BadHeaderError as bhe:
-        logger.error(f"Email sending failed due to BadHeaderError: {str(bhe)}", exc_info=True)
-        raise self.retry(exc=e)
-
-    except Exception as e:
-        logger.error(f"Email sending failed: {str(e)}", exc_info=True)
-        raise self.retry(exc=e)
-
-
 
 @shared_task()
 def send_low_priority_email():
@@ -124,7 +69,7 @@ def send_high_priority_email():
                     message = (
                         f"Dear {user.title} {user.last_name},\n\n"
                         "Your registration is successful. Please click the link below to activate your account:\n\n"
-                        f"link: {settings.FRONTEND_BASE_URL}/activate/{token}"
+                        f"link: {settings.FRONTEND_BASE_URL}/conference/activate/{token}"
                     )
 
 

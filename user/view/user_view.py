@@ -7,6 +7,8 @@ from django.db import transaction
 from rest_framework.decorators import action
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from services.email.tasks import send_email_task
+from usche_app import settings
 from user.enums.invitation_status import InvitationStatusEnum
 from user.models import User
 from user.serializers import RequestRegistration, UsersSerializer, UserResponseSerializer
@@ -14,7 +16,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from conference.models import Conference
 
-from user.tasks import process_registration
+from utils.access_token import generate_token
 
 logger = logging.getLogger(__name__)
 
@@ -70,41 +72,114 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['post'])
     def register(self, request):
-        
         serializer = RequestRegistration(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         validated_data = serializer.validated_data
-        
+        email = validated_data.get("email")
+
         try:
             conference = Conference.get_latest_conference()
-            
             if not conference.registration_open:
-                logger.warning("403: Registration is closed for the current conference.")
                 return Response(
-                    data={"detail": "Registration closed. For any inquiries, please contact info@usche.ac.tz or call +255 700 123 456."},
-                    status=status.HTTP_403_FORBIDDEN
+                    data={
+                        "detail": "Registration closed. For any inquiries, contact info@usche.ac.tz or call +255 700 123 456."
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
                 )
-            
-            process_registration.delay(validated_data)
-            
-            return Response(
-                data={"detail": "You have successfully registered. A confirmation email has been sent to you for activation."},
-                status=status.HTTP_201_CREATED
-            )
-        
-        except ValidationError as ve:
-            logger.error(f"Validation error: {str(ve)}", exc_info=True)
-            return Response(
-                data={"detail": f"Validation error: {str(ve)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+
+            # Check if user exists
+            try:
+                user = User.objects.get(email=email)
+                
+                if not user.is_active:
+                    token = generate_token(user=user)
+                    # Resend activation email
+                    subject = "Activate Your USChE Account"
+                    recipient = user.email
+                    greeting = f"Hello {user.first_name},"
+                    lines = [
+                        "It seems you already registered but haven't activated your account yet.",
+                        "Please click the button below to activate your account."
+                    ]
+                    salutations = ["Best regards,", "The USChE Team"]
+                    button_text = "Activate Account"
+                    button_url = f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}"
+                    footer_text = "© 2026 USChE - University of Dodoma"
+
+                    send_email_task.delay(
+                        subject=subject,
+                        to=recipient,
+                        greeting=greeting,
+                        lines=lines,
+                        salutations=salutations,
+                        button_text=button_text,
+                        button_url=button_url,
+                        footer_text=footer_text
+                    )
+
+                    return Response(
+                        data={"detail": "Your account is not activated yet. We have resent the activation email."},
+                        status=status.HTTP_200_OK,
+                    )
+                else:
+                    # Already active
+                    return Response(
+                        data={"detail": "This email is already registered and active. Please login."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            except User.DoesNotExist:
+                # Create new user
+                with transaction.atomic():
+                    user = User.create_user(
+                        title=validated_data.get("title"),
+                        first_name=validated_data.get("first_name").strip().capitalize(),
+                        middle_name=validated_data.get("middle_name"),
+                        last_name=validated_data.get("last_name"),
+                        phone_number=validated_data.get("phone_number"),
+                        email=email,
+                        country=validated_data.get("country"),
+                        password=validated_data.get("password"),
+                        affiliation=validated_data.get("affiliation"),
+                        occupation=validated_data.get("occupation"),
+                    )
+                    
+                token = generate_token(user=user)
+
+                # Send activation email
+                subject = "Activate Your USChE Account"
+                recipient = user.email
+                greeting = f"Hello {user.first_name},"
+                lines = [
+                    "Thank you for registering for the USChE Conference.",
+                    "Please click the button below to activate your account."
+                ]
+                salutations = ["Best regards,", "The USChE Team"]
+                button_text = "Activate Account"
+                button_url = f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}"
+                footer_text = "© 2026 USChE - University of Dodoma"
+
+                send_email_task.delay(
+                    subject=subject,
+                    to=recipient,
+                    greeting=greeting,
+                    lines=lines,
+                    salutations=salutations,
+                    button_text=button_text,
+                    button_url=button_url,
+                    footer_text=footer_text
+                )
+
+                return Response(
+                    data={"detail": "You have successfully registered. A confirmation email has been sent to you for activation."},
+                    status=status.HTTP_201_CREATED,
+                )
+
         except Exception as e:
             logger.error(f"Error occurred during registration: {str(e)}", exc_info=True)
             return Response(
                 data={"detail": "An internal server error occurred. Please try again later."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
             
     @swagger_auto_schema(

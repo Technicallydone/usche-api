@@ -19,7 +19,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=30, null=True, blank=True)
     middle_name = models.CharField(max_length=30, null=True, blank=True)
     last_name = models.CharField(max_length=30, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, unique=True, validators=[validate_phone_number])
+    phone_number = models.CharField(max_length=15, validators=[validate_phone_number])
     email = models.EmailField(max_length=100, unique=True, null=False, blank=False, validators=[EmailValidator(message="Please enter a valid email address")])
     country = models.CharField(max_length=20, null=False, blank=False)
     is_active = models.BooleanField(default=False)

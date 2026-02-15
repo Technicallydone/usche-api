@@ -1,17 +1,14 @@
-# services/email/tasks.py
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict
 from celery import shared_task, Task
 from .gmail_provider import GmailProvider
 from .mail_template import EmailTemplate
 
-# Configure logger
 logger = logging.getLogger(__name__)
-
 
 @shared_task(bind=True, max_retries=3)
 def send_email_task(
-    self: Task,  # Required for bind=True to use retry
+    self: Task,  # Required for bind=True
     subject: str,
     to: str,
     greeting: str = "",
@@ -21,26 +18,17 @@ def send_email_task(
     button_url: Optional[str] = None,
     footer_text: Optional[str] = None,
     html_message: Optional[str] = None,
+    attachments: Optional[List[Dict]] = None,  # {"filename": str, "content": bytes, "mime_type": str}
 ) -> None:
     """
     Celery task to send an email using GmailProvider and EmailTemplate.
-
-    :param subject: Email subject
-    :param to: Recipient email address
-    :param greeting: Greeting text at the top of the email
-    :param lines: List of lines for the body of the email
-    :param salutations: List of lines for the closing/salutation
-    :param button_text: Optional CTA button text
-    :param button_url: Optional CTA button URL
-    :param footer_text: Optional footer text
-    :param html_message: Optional custom HTML content (overrides template)
-    :return: None
+    Supports attachments.
     """
     lines = lines or []
     salutations = salutations or []
 
     try:
-        # Build the email template if no custom HTML is provided
+        # Build HTML template if not provided
         if not html_message:
             template = EmailTemplate(subject=subject, to=to)
             if greeting:
@@ -56,19 +44,25 @@ def send_email_task(
 
             html_message = template.build()
 
-        # Send email using GmailProvider
+        # Prepare attachments for GmailProvider
+        formatted_attachments = None
+        if attachments:
+            formatted_attachments = [
+                (att["filename"], att["content"], att["mime_type"]) for att in attachments
+            ]
+
+        # Send email
         provider = GmailProvider()
         provider.send(
             subject=subject,
             message="",  # optional plain text fallback
             recipients=[to],
-            html_message=html_message
+            html_message=html_message,
+            attachments=formatted_attachments
         )
 
-        # Log success
         logger.info(f"Email successfully sent to {to} with subject '{subject}'")
 
     except Exception as e:
-        # Log error and retry
         logger.error(f"Failed to send email to {to} with subject '{subject}': {e}")
         raise self.retry(exc=e)

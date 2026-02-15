@@ -826,7 +826,7 @@ def send_activation_email(user: User):
             raise Exception("Failed to generate token")
 
         # Prepare the activation URL
-        activation_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
+        activation_url = f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}"
         subject = "Activate Your Account"
         
         # Prepare the HTML message
@@ -884,7 +884,7 @@ def send_activation_email(user: User):
 #             logger.error(f"Token generation failed for user {user.email}: {e}")
 #             raise
 
-#         activation_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
+#         activation_url = f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}"
 #         subject = "Activate Your Account"
 
 #         html_content = f"""

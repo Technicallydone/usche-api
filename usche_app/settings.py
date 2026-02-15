@@ -340,11 +340,6 @@ CELERY_TASK_ROUTES = {
 }
 
 CELERY_BEAT_SCHEDULE = {
-    # 'send_deadline_reminder_high_priority_email': {
-    #     'task': 'user.tasks.send_deadline_reminderhigh_priority_email',  
-    #     'schedule': timedelta(days=3),
-    #     'options': {'queue': 'high_priority', 'priority': 10},
-    # },
     'send_email_task': {
         'task': 'services.tasks.send_email_task',  
         'schedule': timedelta(minutes=1),
@@ -375,11 +370,6 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(minutes=5),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
-    # 'send_registration_payment_reminder_low_priority_email': {
-    #     'task': 'user.tasks.send_registration_payment_reminder_low_priority_email',  
-    #     'schedule': timedelta(days=3), 
-    #     'options': {'queue': 'low_priority', 'priority': 0},
-    # },
 }
 
 

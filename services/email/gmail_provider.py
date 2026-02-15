@@ -1,19 +1,24 @@
 import logging
-from typing import List
-from django.core.mail import send_mail
+from typing import List, Optional, Tuple
+from django.core.mail import EmailMessage
 from usche_app import settings
 from .base import BaseEmailProvider
 
 logger = logging.getLogger(__name__)
 
 class GmailProvider(BaseEmailProvider):
+    """
+    Email provider using Django's EmailMessage.
+    Supports HTML content and attachments.
+    """
 
     def send(
         self,
         subject: str,
         message: str,
         recipients: List[str],
-        html_message: str | None = None
+        html_message: Optional[str] = None,
+        attachments: Optional[List[Tuple[str, bytes, str]]] = None,  # (filename, content, mime_type)
     ) -> None:
 
         logger.info(
@@ -22,14 +27,26 @@ class GmailProvider(BaseEmailProvider):
         )
 
         try:
-            send_mail(
+            # Create email message
+            email = EmailMessage(
                 subject=subject,
-                message=message,
+                body=message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=recipients,
-                fail_silently=False,
-                html_message=html_message,
+                to=recipients,
             )
+
+            # Set HTML content if provided
+            if html_message:
+                email.content_subtype = "html"
+                email.body = html_message
+
+            # Attach files if any
+            if attachments:
+                for filename, file_content, mime_type in attachments:
+                    email.attach(filename, file_content, mime_type)
+
+            # Send email
+            email.send(fail_silently=False)
 
             logger.info(
                 "Email sent successfully",

@@ -12,9 +12,11 @@ from rest_framework.decorators import action
 from abstracts.models import Abstract
 from attendee.models import Attendee
 from conference.models import Conference
+from payment.enums.payment_status import PaymentStatus
 from payment.models import Payment
 from payment.serializers import PaymentStatusUpdateSerializer, CompletedPaymentSerializer, UploadPaymentSlipSerializer, RequestPaymentDetailSerializer, PaymentSerializer
 from payment.tasks import process_payment_approval
+from services.email.tasks import send_email_task
 from usche_app import settings
 from django.db import transaction
 
@@ -29,6 +31,142 @@ logger = logging.getLogger(__name__)
 
 class PaymentViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
+    
+    @swagger_auto_schema(
+        operation_description="Retrieve approved payments for the conference join requests",
+        operation_summary="Request Join Approved Payments",
+        method="get",
+        tags=["Payment"],
+        responses={
+            200: openapi.Response(
+                description="Payments retrieved successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'next': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'previous': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'results': openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'payment_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'payment_slip': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'amount': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'status': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'timestamp': openapi.Schema(type=openapi.TYPE_STRING, format="date-time"),
+                                    'user': openapi.Schema(
+                                        type=openapi.TYPE_OBJECT,
+                                        properties={
+                                            'user_id': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'affiliation': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'first_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'middle_name': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                                            'last_name': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'email': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'country': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'occupation': openapi.Schema(type=openapi.TYPE_STRING),
+                                            'title': openapi.Schema(type=openapi.TYPE_STRING),
+                                        }
+                                    ),
+                                }
+                            )
+                        ),
+                    }
+                )
+            ),
+            400: openapi.Response(
+                description="Bad Request - Invalid conference or not provided.",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Conference id not provided.")
+                    }
+                ),
+            ),
+            404: openapi.Response(
+                description="Not Found - Conference not found",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Conference not found.")
+                    }
+                ),
+            ),
+            401: openapi.Response(
+                description="Unauthorized - User must be authenticated",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'detail': openapi.Schema(type=openapi.TYPE_STRING, example="Authentication credentials were not provided")
+                    }
+                ),
+            ),
+        },
+        manual_parameters=[
+            openapi.Parameter(
+                'conference_id',
+                openapi.IN_QUERY,
+                description="Conference ID",
+                type=openapi.TYPE_STRING,
+                required=True
+            ),
+            openapi.Parameter(
+                'status',
+                openapi.IN_QUERY,
+                description="Abstract status to filter (e.g., Pending, Completed, All)",
+                type=openapi.TYPE_STRING,
+                enum=PaymentStatus.values() + ['All'],
+            ),
+            openapi.Parameter(
+                'search_query',
+                openapi.IN_QUERY,
+                description="Search by user name",
+                type=openapi.TYPE_STRING,
+                required=False
+            ),
+        ]
+    )
+    @action(detail=False, methods=["get"])
+    def filtered_payment(self, request: HttpRequest):
+        user = cast(User, request.user)
+        
+        if not request.user.is_authenticated or user.role not in [ROLE.ORGANIZER.value, ROLE.BURSAR.value, ROLE.ADMIN.value]:
+            return Response(
+                data={"detail": "You are not authorized to request ticket for this conference"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        conference_id = request.GET.get("conference_id")
+        search_query = request.GET.get('search_query')
+        status_param = request.GET.get('status')
+        
+        if conference_id is None:
+            return Response(data={"detail": "Conference id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            conference = Conference.get_conference_by_id(conference_id=conference_id)
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Use the get_approved_payments method here
+            payments = Payment.filter_payment(conference=conference, search_query=search_query, status=status_param)
+            
+            paginator = PageNumberPagination()
+            page = paginator.paginate_queryset(payments, request)
+            
+            if page is not None:
+                response_serializer = CompletedPaymentSerializer(page, many=True)
+                return paginator.get_paginated_response(response_serializer.data)
+            
+            response_serializer = CompletedPaymentSerializer(payments, many=True)
+            return Response(data=response_serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error while retrieving approved payments: {e}", exc_info=True)
+            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @swagger_auto_schema(
         operation_description="Retrieve approved payments for the conference join requests",
@@ -471,52 +609,69 @@ class PaymentViewSet(viewsets.ViewSet):
     )
     @action(detail=False, methods=['post'], url_path='complete-payment')
     def complete_payment(self, request: HttpRequest):
-        """Complete a payment for an abstract and mark it as approved."""
+        """Complete a payment for an abstract, mark it as approved and notify the user."""
+
         organizer = cast(User, request.user)
-        
+
         if not request.user.is_authenticated or organizer.role != ROLE.BURSAR.value:
             return Response(
-                {"detail": "You must be authenticated to complete payment."},
-                status=status.HTTP_401_UNAUTHORIZED
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        request_serializer = PaymentStatusUpdateSerializer(data=request.data)
-        if not request_serializer.is_valid():
-            return Response(
-                {"detail": "Invalid payment data."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
+        serializer = PaymentStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        payment_id = serializer.validated_data.get("payment_id")
+
         try:
             with transaction.atomic():
-                payment_id = request_serializer.validated_data.get("payment_id")
-                
+
                 payment = Payment.mark_as_approved(payment_id=payment_id)
 
-                if payment:
-                    
-                    if payment.abstract:
-                        payment.abstract.mark_payment_done()
-                    
-                    Attendee.create_attendee(conference=payment.conference, participant=payment.user)
-                    
-                    process_payment_approval.delay({
-                        "user_id": str(payment.user.user_id)
-                    })
-                    
+                if not payment:
                     return Response(
-                        {"detail": "Payment completed successfully"},
-                        status=status.HTTP_200_OK
+                        {"detail": "Payment not found or already processed."},
+                        status=status.HTTP_404_NOT_FOUND
                     )
 
-                return Response(
-                    {"detail": "Abstract not found or payment failed to mark as completed."},
-                    status=status.HTTP_404_NOT_FOUND
+                if payment.abstract:
+                    payment.abstract.mark_payment_done()
+
+                Attendee.create_attendee(
+                    conference=payment.conference,
+                    participant=payment.user
                 )
-        except Exception as e:
-            logger.error(f"Error while completing payment: {e}")
+
+            # Send approval email AFTER transaction succeeds
+            send_email_task.delay(
+                subject="Payment Approved - USChE Conference",
+                to=payment.user.email,
+                greeting=f"Hello {payment.user.first_name},",
+                lines=[
+                    "We are pleased to inform you that your payment has been successfully approved.",
+                    "Your conference registration is now confirmed.",
+                    "We look forward to your participation."
+                ],
+                salutations=["Best regards,", "The USChE Finance Team"],
+                button_text="View Conference Details",
+                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
+
+            process_payment_approval.delay({
+                "user_id": str(payment.user.user_id)
+            })
+
             return Response(
-                {"detail": f"An error occurred: {str(e)}"},
+                {"detail": "Payment completed successfully and user notified."},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception:
+            logger.exception("Error while completing payment.")
+            return Response(
+                {"detail": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -567,40 +722,71 @@ class PaymentViewSet(viewsets.ViewSet):
     )
     @action(detail=False, methods=['post'])
     def reject_payment(self, request: HttpRequest):
-        """Reject a payment with an optional comment."""
+        """Reject a payment and notify the user via email."""
+
         user = cast(User, request.user)
-        if not request.user.is_authenticated and user.role != ROLE.BURSAR.value:
+
+        if not request.user.is_authenticated or user.role != ROLE.BURSAR.value:
             return Response(
-                {"detail": "Authentication credentials were not provided"},
-                status=status.HTTP_401_UNAUTHORIZED
+                {"detail": "You do not have permission to perform this action."},
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        request_serailizer = PaymentStatusUpdateSerializer(data=request.data)
-        request_serailizer.is_valid(raise_exception=True)
+        serializer = PaymentStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        payment_id = serializer.validated_data.get("payment_id")
+        comment = serializer.validated_data.get("comment")
 
         try:
             with transaction.atomic():
-                payment = Payment.mark_as_rejected(
-                    payment_id=request_serailizer.validated_data.get("payment_id"), 
-                    comment=request_serailizer.validated_data.get("comment")
-                )
-                
-                if payment:
-                    send_payment_rejection_email(user=payment.user, comment=request_serailizer.validated_data.get("comment"))
-                    return Response(data={"detail": "Payment rejected successfully"}, status=status.HTTP_200_OK)
-                return Response({"detail": "Payment not found or already processed"}, status=status.HTTP_404_NOT_FOUND)
+
+                payment = Payment.objects.select_for_update().get(payment_id=payment_id)
+
+                if payment.status != PaymentStatus.PENDING.value:
+                    return Response(
+                        {"detail": "Payment has already been processed."},
+                        status=status.HTTP_409_CONFLICT
+                    )
+
+                payment.status = PaymentStatus.REJECTED.value
+                payment.comment = comment
+                payment.rejected_by = user
+                payment.save(update_fields=["status", "comment", "rejected_by"])
+
+            send_email_task.delay(
+                subject="Payment Rejected - USChE Conference",
+                to=payment.user.email,
+                greeting=f"Hello {payment.user.first_name},",
+                lines=[
+                    "We regret to inform you that your recent payment submission has been rejected.",
+                    f"Reason: {comment or 'No reason was provided.'}",
+                    "Please review the issue and submit a new payment."
+                ],
+                salutations=["Best regards,", "The USChE Finance Team"],
+                button_text="Submit New Payment",
+                button_url=f"{settings.FRONTEND_BASE_URL}/auth",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
+
+            return Response(
+                {"detail": "Payment rejected successfully and user notified."},
+                status=status.HTTP_200_OK
+            )
 
         except Payment.DoesNotExist:
             return Response(
-                {"detail": "Payment not found"},
+                {"detail": "Payment not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
-        except Exception as e:
+
+        except Exception:
+            logger.exception("Error while rejecting payment.")
             return Response(
-                {"detail": str(e)},
+                {"detail": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-            
+
     @swagger_auto_schema(
         operation_description="Retrieve pending payment",
         operation_summary="Retrieve Pending Payments",
