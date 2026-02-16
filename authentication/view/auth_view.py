@@ -323,7 +323,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 ],
                 salutations=["Best regards,", "The USChE Team"],
                 button_text="Activate Account",
-                button_url=f"{settings.FRONTEND_BASE_URL}/conference/activate/{token}",
+                button_url=f"{settings.FRONTEND_BASE_URL}/activate/{token}",
                 footer_text="© 2026 USChE - University of Dodoma"
             )
 

@@ -69,7 +69,7 @@ def send_high_priority_email():
                     message = (
                         f"Dear {user.title} {user.last_name},\n\n"
                         "Your registration is successful. Please click the link below to activate your account:\n\n"
-                        f"link: {settings.FRONTEND_BASE_URL}/conference/activate/{token}"
+                        f"link: {settings.FRONTEND_BASE_URL}/activate/{token}"
                     )
 
 
