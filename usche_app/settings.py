@@ -336,15 +336,10 @@ CELERY_TASK_ROUTES = {
     'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
     'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
     'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
-    'services.tasks.send_email_task': {'queue': 'high_priority'},
+    'services.email.tasks.send_email_task': {'queue': 'high_priority'},
 }
 
 CELERY_BEAT_SCHEDULE = {
-    'send_email_task': {
-        'task': 'services.tasks.send_email_task',  
-        'schedule': timedelta(minutes=1),
-        'options': {'queue': 'high_priority', 'priority': 10},
-    },
     'send_high_priority_email': {
         'task': 'user.tasks.send_high_priority_email',  
         'schedule': timedelta(minutes=1),
