@@ -4,7 +4,6 @@ from django.urls import path, include
 from django.shortcuts import redirect
 
 urlpatterns = [
-    path('', lambda request: redirect('/admin/')),
     path('admin/', admin.site.urls),
     path('api/v1/auth/', include('authentication.urls')),
     path('api/v1/accounts/', include('user.urls')),

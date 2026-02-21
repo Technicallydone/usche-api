@@ -379,11 +379,6 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(minutes=5),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
-    # 'send_registration_payment_reminder_low_priority_email': {
-    #     'task': 'user.tasks.send_registration_payment_reminder_low_priority_email',  
-    #     'schedule': timedelta(days=3), 
-    #     'options': {'queue': 'low_priority', 'priority': 0},
-    # },
 }
 
 

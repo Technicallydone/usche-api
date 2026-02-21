@@ -14,7 +14,6 @@ from utils.send_email import  send_activation_email, send_reminder_email
 import logging
 from django.utils.timezone import now
 from django.utils import timezone
-
 from utils.access_token import generate_token
 from utils.uniode_strip import strip_unicode
 
