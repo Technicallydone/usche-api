@@ -22,6 +22,7 @@ from utils.send_email import send_activation_email
 from utils.access_token import generate_token, verify_token
 from django.core.mail import BadHeaderError
 from django.utils import timezone
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -116,17 +117,18 @@ class AuthenticationViewSet(viewsets.ViewSet):
 
             # Send notification email
             send_email_task.delay(
-                subject="Your Password Has Been Changed",
+                subject="USCHe Account Password Successfully Updated",
                 to=user.email,
                 greeting=f"Hello {user.first_name},",
                 lines=[
-                    "Your account password has been successfully changed.",
-                    "If you did not initiate this change, please reset your password immediately or contact support."
+                    "This is a confirmation that the password for your USCHe account has been successfully updated.",
+                    "If you made this change, no further action is required.",
+                    "If you did not make this change, please reset your password using the secure link below or contact the USCHe support team for assistance."
                 ],
-                salutations=["Best regards,", "The USChE Team"],
-                button_text="Login to Your Account",
+                salutations=["Regards,", "USCHe Support Team"],
+                button_text="Access Your Account",
                 button_url=f"{settings.FRONTEND_BASE_URL}/auth",
-                footer_text="© 2026 USChE - University of Dodoma"
+                footer_text="© 2026 USCHe - University of Dodoma"
             )
 
             return Response(
@@ -220,12 +222,32 @@ class AuthenticationViewSet(viewsets.ViewSet):
             if user is None:
                 return Response(data={"detail": "User with given email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
-            process_reset_password_email.delay(user.user_id)
+            with transaction.atomic():
+                token = generate_token(user=user)
+                if not token:
+                    raise Exception("Failed to generate token")
 
-            return Response(
-                data={"detail": "A password reset request has been received. If the email provided is associated with an account, you will receive instructions shortly to reset your password."},
-                status=status.HTTP_200_OK
-            )
+                # Use the generic send_email_task.delay
+                send_email_task.delay(
+                    subject="USCHe Password Reset Request",
+                    to=user.email,
+                    greeting=f"Hello {user.first_name},",
+                    lines=[
+                        "A request was made to reset the password for your USCHe account.",
+                        "If you made this request, please use the link below to set a new password.",
+                        "If you did not request this, you may safely ignore this email."
+                    ],
+                    salutations=["Regards,", "USCHe Support Team"],
+                    button_text="Set New Password",
+                    button_url=f"{settings.FRONTEND_BASE_URL}/auth/reset-password/{token}",
+                    footer_text="© 2026 USCHe - University of Dodoma"
+                )
+
+                return Response(
+                    data={"detail": "A password reset request has been received. If the email provided is associated with an account, you will receive instructions shortly to reset your password."},
+                    status=status.HTTP_200_OK
+                )
+            return Response(data={"detail": "Failed to queue reset password link, please try again"}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.error(f"Error occurred during reset password email: {str(e)}", exc_info=True)
