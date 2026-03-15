@@ -85,6 +85,11 @@ class UserManager(BaseUserManager["User"]):
             **extra_fields
         )
 
+def get_default_role() -> uuid.UUID:
+    default_role = Role.objects.filter(name="User").first()
+    if not default_role:
+        raise Exception("Default role not found")
+    return default_role.id
 
 class User(AbstractBaseUser, PermissionsMixin):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -98,7 +103,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
-    role = models.ForeignKey(Role, null=True, blank=True, on_delete=models.SET_NULL)
+    role = models.ForeignKey(Role, null=True, blank=True, on_delete=models.SET_NULL, default=get_default_role)
     
     resend_activation_email = models.BooleanField(default=False)
     has_sent_activation_email = models.BooleanField(default=False)
@@ -107,6 +112,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     title = models.CharField(max_length=255, null=False, blank=False, choices=TITLE_ENUM.choices())  
     affiliation = models.TextField()
+    
+    failed_login_attempts = models.PositiveIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+
     occupation = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 

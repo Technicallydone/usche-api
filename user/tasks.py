@@ -9,7 +9,6 @@ from settings.models import Settings
 from usche_app import settings
 from user.models import User
 from utils.beem_sms import BeemSMSClient
-from utils.email_templates.account_activatation_template import usche_account_activation_template
 from utils.send_email import  send_activation_email, send_reminder_email
 import logging
 from django.utils.timezone import now

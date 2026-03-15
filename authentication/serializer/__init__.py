@@ -3,5 +3,6 @@ from .token_serializer import TokenResponseSerializer, TokenSerializer
 from .request_sign_out_serializer import SignOutSerializer
 from .request_activate_account import RequestActivateAccount
 from .request_new_token_serializer import RequestNewToken
-from .change_password_serailizer import RequestChangePasswordSerailizer
+from .change_password_serailizer import RequestChangePasswordSerializer
 from .request_registration import RequestRegistration
+from .forgot_password_request_serializer import ForgotPasswordRequestSerializer

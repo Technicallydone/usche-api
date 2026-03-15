@@ -1,9 +1,10 @@
 from typing import List
-from django.db import models
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from rest_framework.exceptions import NotFound
 from uuid import uuid4, UUID
 
+from user.enums.permission_enums import AppPermissionEnum
 from user.model.app_permission_model import AppPermission
 
 class Role(models.Model):
@@ -17,6 +18,27 @@ class Role(models.Model):
     class Meta:
         db_table = "roles"
         app_label = "user"
+    
+    @staticmethod
+    def seed_default_role(default_role_name="User"):
+        """
+        Ensure the default role exists with default permissions.
+        """
+
+        with transaction.atomic():
+            role, created = Role.objects.get_or_create(name=default_role_name)
+
+            if created:
+                default_permissions = AppPermission.objects.filter(
+                    code_name__in=[
+                        AppPermissionEnum.VIEW_PROFILE.value,
+                        AppPermissionEnum.CHANGE_PASSWORD.value,
+                    ]
+                )
+                role.permissions.set(default_permissions)
+                role.save()
+
+            return role
         
     @staticmethod
     def find_by_id(id: UUID):

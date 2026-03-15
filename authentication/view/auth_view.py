@@ -1,6 +1,8 @@
+from datetime import timedelta
 import logging
 from typing import cast
 from django.core.signing import SignatureExpired
+from django.db import transaction
 from rest_framework import permissions, status, viewsets
 from rest_framework.request import Request
 from authentication.serializers import (
@@ -9,7 +11,9 @@ from authentication.serializers import (
     SignOutSerializer,
     RequestActivateAccount,
     RequestNewToken,
-    RequestChangePasswordSerailizer,
+    RequestChangePasswordSerializer,
+    ForgotPasswordRequestSerializer,
+    RequestRegistration
 )
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -17,7 +21,7 @@ from authentication.auth import TokenAuthentication
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
-from authentication.tasks import process_reset_password_email
+from django.contrib.auth import authenticate
 from services.email.tasks import send_email_task
 from usche_app import settings
 from user.model.user_model import User
@@ -27,16 +31,19 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 class AuthenticationViewSet(viewsets.ViewSet):
+    MAX_FAILED_ATTEMPTS = 5
+    LOCK_DURATION_MINUTES = 15
+    
     permission_classes = (permissions.AllowAny,)
     authentication_classes = [
         TokenAuthentication,
         JWTAuthentication,
     ]
     
-    @action(detail=False, methods=['post'])
-    def change_password(self, request, email = None):
+    @action(detail=False, methods=['post'], url_path='change-password')
+    def change_password(self, request: Request):
         
-        request_serializer = RequestChangePasswordSerailizer(data=request.data)
+        request_serializer = RequestChangePasswordSerializer(data=request.data)
         request_serializer.is_valid(raise_exception=True)
         validated_data = request_serializer.validated_data
 
@@ -64,17 +71,18 @@ class AuthenticationViewSet(viewsets.ViewSet):
 
             # Send notification email
             send_email_task.delay(
-                subject="Your Password Has Been Changed",
+                subject="USCHe Account Password Successfully Updated",
                 to=user.email,
                 greeting=f"Hello {user.first_name},",
                 lines=[
-                    "Your account password has been successfully changed.",
-                    "If you did not initiate this change, please reset your password immediately or contact support."
+                    "This is a confirmation that the password for your USCHe account has been successfully updated.",
+                    "If you made this change, no further action is required.",
+                    "If you did not make this change, please reset your password using the secure link below or contact the USCHe support team for assistance."
                 ],
-                salutations=["Best regards,", "The USChE Team"],
-                button_text="Login to Your Account",
+                salutations=["Regards,", "USCHe Support Team"],
+                button_text="Access Your Account",
                 button_url=f"{settings.FRONTEND_BASE_URL}/auth",
-                footer_text="© 2026 USChE - University of Dodoma"
+                footer_text="© 2026 USCHe - University of Dodoma"
             )
 
             return Response(
@@ -99,23 +107,43 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=['post'], url_path='forgot-password/(?P<email>[^/]+)')
-    def forgot_password(self, request, email=None):
-        if email is None:
-            return Response(data={"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
-
+    @action(detail=False, methods=['post'], url_path='forgot-password')
+    def forgot_password(self, request: Request):
+        serializer = ForgotPasswordRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
         try:
-            user = User.get_user_by_email(email=email)
+            user = User.get_user_by_email(email=validated_data.get('email'))
 
             if user is None:
                 return Response(data={"detail": "User with given email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
-            process_reset_password_email.delay(user.user_id)
+            with transaction.atomic():
+                token = generate_token(user=user)
+                if not token:
+                    raise Exception("Failed to generate token")
 
-            return Response(
-                data={"detail": "A password reset request has been received. If the email provided is associated with an account, you will receive instructions shortly to reset your password."},
-                status=status.HTTP_200_OK
-            )
+                # Use the generic send_email_task.delay
+                send_email_task.delay(
+                    subject="USCHe Password Reset Request",
+                    to=user.email,
+                    greeting=f"Hello {user.first_name},",
+                    lines=[
+                        "A request was made to reset the password for your USCHe account.",
+                        "If you made this request, please use the link below to set a new password.",
+                        "If you did not request this, you may safely ignore this email."
+                    ],
+                    salutations=["Regards,", "USCHe Support Team"],
+                    button_text="Set New Password",
+                    button_url=f"{settings.FRONTEND_BASE_URL}/auth/reset-password/{token}",
+                    footer_text="© 2026 USCHe - University of Dodoma"
+                )
+
+                return Response(
+                    data={"detail": "A password reset request has been received. If the email provided is associated with an account, you will receive instructions shortly to reset your password."},
+                    status=status.HTTP_200_OK
+                )
+            return Response(data={"detail": "Failed to queue reset password link, please try again"}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.error(f"Error occurred during reset password email: {str(e)}", exc_info=True)
@@ -184,7 +212,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], url_path='accounts/activate')
     def activate_account(self, request):
         """
         Activate the user account by verifying the activation token.
@@ -228,20 +256,43 @@ class AuthenticationViewSet(viewsets.ViewSet):
     def sign_in(self, request: Request):
         serializer = RequestSignInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        password = serializer.validated_data["password"]
         
         try:
-            validated_data = serializer.validated_data
-            user = cast(User, validated_data)
+            user = User.objects.filter(email=email).first()
+            if not user:
+                raise AuthenticationFailed("Invalid credentials")
 
-            if not user.is_active:
-                logger.warning(f"Inactive account: {user.email}")
-                raise PermissionDenied(detail="Your account is not activated")
-            
+            if user.locked_until and user.locked_until > timezone.now():
+                remaining = (user.locked_until - timezone.now()).seconds // 60
+                raise PermissionDenied(
+                    f"Account locked due to multiple failed login attempts. Try again in {remaining} minutes."
+                )
+
+            # Authenticate the user
+            authenticated_user = authenticate(email=email, password=password)
+            if not authenticated_user:
+                # Increment failed attempts
+                user.failed_login_attempts += 1
+                if user.failed_login_attempts >= self.MAX_FAILED_ATTEMPTS:
+                    user.locked_until = timezone.now() + timedelta(minutes=self.LOCK_DURATION_MINUTES)
+                    user.failed_login_attempts = 0  # reset after locking
+                user.save(update_fields=["failed_login_attempts", "locked_until"])
+                raise AuthenticationFailed("Invalid credentials")
+
+            # Check if user is active
+            if not authenticated_user.is_active:
+                raise PermissionDenied("Your account is not activated")
+
+            # Successful login → reset failed attempts
+            user.failed_login_attempts = 0
+            user.locked_until = None
             user.last_login = timezone.now()
-            user.save(update_fields=["last_login"])
+            user.save(update_fields=["failed_login_attempts", "locked_until", "last_login"])
 
-            token = RefreshToken.for_user(user=user)
-            
+            # Generate JWT token
+            token = RefreshToken.for_user(authenticated_user)
             token.payload["user"] = {
                 "id": str(user.user_id),
                 "email": user.email,
@@ -251,28 +302,130 @@ class AuthenticationViewSet(viewsets.ViewSet):
                     "id": str(user.role.id) if user.role else None,
                     "name": user.role.name if user.role else None
                 },
+                "permissions": list(user.role.permissions.values_list("code_name", flat=True)) if user.role else []
             }
 
-            token_data = {
-                "refresh": str(token),
-                "access": str(token.access_token)
-            }
-
+            token_data = {"refresh": str(token), "access": str(token.access_token)}
             response_serializer = TokenResponseSerializer({"tokens": token_data})
-            logger.info("TokenResponseSerializer data returned successfully")
+
             return Response(data=response_serializer.data, status=status.HTTP_200_OK)
 
         except AuthenticationFailed as e:
-            logger.error(e, exc_info=True)
-            return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            logger.warning(f"Authentication failed for {request.data.get('email')}: {str(e)}")
+            return Response({"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
 
         except PermissionDenied as e:
-            logger.error(f"Permission denied: {str(e)}", exc_info=True)
+            logger.warning(f"Permission denied for {request.data.get('email')}: {str(e)}")
             return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
 
         except Exception as e:
-            logger.exception(e, exc_info=True)
+            logger.exception(f"Unexpected error during sign-in for {request.data.get('email')}: {str(e)}")
             return Response({"detail": "An unexpected error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='sign-up')
+    def sign_up(self, request: Request):
+        serializer = RequestRegistration(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        email = validated_data.get("email")
+
+        try:
+            # Check if user exists
+            try:
+                user = User.objects.get(email=email)
+                
+                if not user.is_active:
+                    token = generate_token(user=user)
+                    # Resend activation email
+                    subject = "Activate Your USChE Account"
+                    recipient = user.email
+                    greeting = f"Hello {user.first_name},"
+                    lines = [
+                        "It seems you already registered but haven't activated your account yet.",
+                        "Please click the button below to activate your account."
+                    ]
+                    salutations = ["Best regards,", "The USChE Team"]
+                    button_text = "Activate Account"
+                    button_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
+                    footer_text = "© 2026 USChE - University of Dodoma"
+
+                    send_email_task.delay(
+                        subject=subject,
+                        to=recipient,
+                        greeting=greeting,
+                        lines=lines,
+                        salutations=salutations,
+                        button_text=button_text,
+                        button_url=button_url,
+                        footer_text=footer_text
+                    )
+
+                    return Response(
+                        data={"detail": "Your account is not activated yet. We have resent the activation email."},
+                        status=status.HTTP_200_OK,
+                    )
+                else:
+                    # Already active
+                    return Response(
+                        data={"detail": "This email is already registered and active. Please login."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            except User.DoesNotExist:
+                # Create new user
+                with transaction.atomic():
+                    middle_name = validated_data.get("middle_name")
+                    middle_name = middle_name if middle_name else None
+                    user = User.create_user(
+                        title=validated_data.get("title"),
+                        first_name=validated_data.get("first_name"),
+                        middle_name=middle_name,
+                        last_name=validated_data.get("last_name"),
+                        phone_number=validated_data.get("phone_number"),
+                        email=email,
+                        country=validated_data.get("country"),
+                        password=validated_data.get("password"),
+                        affiliation=validated_data.get("affiliation"),
+                        occupation=validated_data.get("occupation"),
+                    )
+                    
+                token = generate_token(user=user)
+
+                # Send activation email
+                subject = "Activate Your USChE Account"
+                recipient = user.email
+                greeting = f"Hello {user.first_name},"
+                lines = [
+                    "Thank you for registering for the USChE Conference.",
+                    "Please click the button below to activate your account."
+                ]
+                salutations = ["Best regards,", "The USChE Team"]
+                button_text = "Activate Account"
+                button_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
+                footer_text = "© 2026 USChE - University of Dodoma"
+
+                send_email_task.delay(
+                    subject=subject,
+                    to=recipient,
+                    greeting=greeting,
+                    lines=lines,
+                    salutations=salutations,
+                    button_text=button_text,
+                    button_url=button_url,
+                    footer_text=footer_text
+                )
+
+                return Response(
+                    data={"detail": "You have successfully registered. A confirmation email has been sent to you for activation."},
+                    status=status.HTTP_201_CREATED,
+                )
+
+        except Exception as e:
+            logger.error(f"Error occurred during registration: {str(e)}", exc_info=True)
+            return Response(
+                data={"detail": "An internal server error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=False, methods=["post"], url_path="sign-out")
     def sign_out(self, request: Request):

@@ -8,3 +8,4 @@ from .roles_response_serializer import RolesResponseSerializer
 from .query_serializer import UserFilterQuerySerializer
 from .user_role_assignment_serializer import UserRoleAssignmentSerializer
 from .user_profile_serializer import UserProfileSerializer
+from .change_password_request_serializer import ChangePasswordRequestSerializer

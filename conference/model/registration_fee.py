@@ -1,14 +1,21 @@
 import uuid
 from django.db import models
-
 from conference.model.conference import Conference
+
 
 class RegistrationFee(models.Model):
     fee_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    conference = models.ForeignKey(Conference, on_delete=models.CASCADE, related_name="registration_fees")
+
+    conference = models.ForeignKey(
+        Conference,
+        on_delete=models.CASCADE,
+        related_name="registration_fees"
+    )
+
     category = models.CharField(max_length=255, null=False, blank=False)
-    early_bird_fee = models.DecimalField(max_digits=10, decimal_places=2, null=False, blank=False)
-    late_registration_fee = models.DecimalField(max_digits=10, decimal_places=2, null=False, blank=False)
+
+    early_bird_fee = models.CharField(max_length=100, null=False, blank=False)
+    late_registration_fee = models.CharField(max_length=100, null=False, blank=False)
 
     class Meta:
         db_table = 'registration_fee'

@@ -1,3 +1,6 @@
+# user/model/app_permission_model.py
+from django.db import transaction
+from user.model.app_permission_model import AppPermission
 from enum import Enum
 
 class AppPermissionEnum(Enum):
@@ -16,5 +19,14 @@ class AppPermissionEnum(Enum):
     DELETE_USERS = "delete_users"
     UPDATE_USERS = "update_users"
     VIEW_PROFILE = "view_profile"
+    CHANGE_PASSWORD = "change_password"
     VIEW_USERS_REPORT = "view_users_report"
     CHANGE_USER_ROLE = "change_user_role"
+
+    @staticmethod
+    def seed_permissions():
+        """Create missing permissions automatically."""
+        with transaction.atomic():
+            for perm in AppPermissionEnum:
+                if not AppPermission.permission_exists(perm.value):
+                    AppPermission.objects.create(code_name=perm.value)
