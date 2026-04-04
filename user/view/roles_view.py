@@ -23,7 +23,7 @@ class AppRoleViewSet(viewsets.ViewSet):
 
     # Keep your permission mapping
     permission_mapping = {
-        'list': AppPermissionEnum.VIEW_ROLES.value,
+        'list': AppPermissionEnum.READ_ROLES.value,
         'create': AppPermissionEnum.CREATE_ROLES.value,
         'change_role_permissions': AppPermissionEnum.UPDATE_ROLES.value,
     }
@@ -50,21 +50,24 @@ class AppRoleViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    @action(detail=False, methods=["put"], url_path="change-permissions")
-    def change_role_permissions(self, request: Request):
+    @action(detail=True, methods=["put"], url_path="change-permissions")
+    def change_role_permissions(self, request: Request, pk=None):
         """
         Sync role permissions. Permissions not in the list will be removed,
         new ones will be added, and existing ones kept.
         """
+        
+        if pk is None:
+            return Response({"detail": "Role ID is required in the URL."}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        
         serializer = RolePermissionSyncSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
-        role_id = validated_data.get("role_id")
         permission_ids = validated_data.get("permission_ids")
 
         try:
-            role = Role.sync_permissions(role_id=role_id, permission_ids=permission_ids)
+            role = Role.sync_permissions(role_id=pk, permission_ids=permission_ids)
             return Response(data=RolesResponseSerializer(role).data, status=status.HTTP_200_OK)
         except NotFound as e:
             return Response({"detail": e.detail}, status=status.HTTP_404_NOT_FOUND)

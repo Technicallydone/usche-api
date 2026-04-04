@@ -1,32 +1,55 @@
 # user/model/app_permission_model.py
-from django.db import transaction
-from user.model.app_permission_model import AppPermission
 from enum import Enum
 
-class AppPermissionEnum(Enum):
-    CREATE_ROLES = "create_roles"
-    VIEW_ROLES = "view_roles"
-    UPDATE_ROLES = "update_roles"
-    DELETE_ROLES = "delete_roles"
+class AppPermissionEnum(str, Enum):
+    # Roles
+    CREATE_ROLES = "permission.create.roles"
+    READ_ROLES = "permission.view.roles"
+    UPDATE_ROLES = "permission.update.roles"
+    DELETE_ROLES = "permission.delete.roles"
+    ADD_PERMISSIONS = "permission.add.permissions"
+    REMOVE_PERMISSIONS = "permission.remove.permissions"
+    ASSIGN_USER_ROLE = "permission.assign.user.role"
+    REMOVE_USER_ROLE = "permission.remove.user.role"
+    CHANGE_USER_ROLE = "permission.change.user.role"
+
+    # Permissions
+    CREATE_PERMISSIONS = "permission.create.permissions"
+    READ_PERMISSIONS = "permission.view.permissions"
+    UPDATE_PERMISSIONS = "permission.update.permissions"
+    DELETE_PERMISSIONS = "permission.delete.permissions"
+
+    # Users
+    READ_USERS = "permission.view.users"
+    CREATE_USERS = "permission.create.users"
+    UPDATE_USERS = "permission.update.users"
+    DELETE_USERS = "permission.delete.users"
+    READ_USERS_REPORT = "permission.view.users.report"
+    UPDATE_STAFF_STATUS = "permission.update.staff.status"
+    MANAGE_STAFF_MEMBERSHIP = "permission.manage.staff.membership"
+
+    # Profile & Password
+    READ_PROFILE = "permission.view.profile"
+    CHANGE_PASSWORD = "permission.change.password"
     
-    CREATE_PERMISSIONS = "create_permissions"
-    VIEW_PERMISSIONS = "view_permissions"
-    UPDATE_PERMISSIONS = "update_permissions"
-    DELETE_PERMISSIONS = "delete_permissions"
+    # Statistics
+    READ_CONFERENCE_STATS = "permission.view.conference.stats"
     
-    VIEW_USERS = "view_users"
-    CREATE_USERS = "create_users"
-    DELETE_USERS = "delete_users"
-    UPDATE_USERS = "update_users"
-    VIEW_PROFILE = "view_profile"
-    CHANGE_PASSWORD = "change_password"
-    VIEW_USERS_REPORT = "view_users_report"
-    CHANGE_USER_ROLE = "change_user_role"
+    SIGN_OUT = "permission.sign.out"
+    
+    # Conference Management
+    MANAGE_CONFERENCE = "permission.manage.conference"
+    READ_CONFERENCE = "permission.view.conference"
+    UPDATE_CONFERENCE = "permission.update.conference"
+    DELETE_CONFERENCE = "permission.delete.conference"
 
     @staticmethod
     def seed_permissions():
-        """Create missing permissions automatically."""
+        """Create missing permissions automatically in DB."""
+        from django.db import transaction
+        from user.model.app_permission_model import AppPermission
+
         with transaction.atomic():
             for perm in AppPermissionEnum:
-                if not AppPermission.permission_exists(perm.value):
-                    AppPermission.objects.create(code_name=perm.value)
+                if not AppPermission.permission_exists(perm):
+                    AppPermission.objects.create(code_name=perm)

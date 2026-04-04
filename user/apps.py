@@ -14,4 +14,6 @@ class UserConfig(AppConfig):
         AppPermissionEnum.seed_permissions()
 
         # Seed default role with default permissions
-        Role.seed_default_role()
+        # Role.seed_default_role()
+        # Role.seed_admin_role()
+        Role.seed_default_roles()

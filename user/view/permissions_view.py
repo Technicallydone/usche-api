@@ -10,9 +10,7 @@ from user.enums.permission_enums import AppPermissionEnum
 from user.models import AppPermission, Role
 from user.serializers import (
     PermissionsResponseSerializer,
-    RolesResponseSerializer,
     CreatePermissionRequestSerializer,
-    RolePermissionSyncSerializer,
 )
 from user.permissions import HasAppPermission
 
@@ -23,11 +21,11 @@ class AppPermissionViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated, HasAppPermission]
     
     permission_mapping = {
-        'list': AppPermissionEnum.VIEW_ROLES.value,
-        'create': AppPermissionEnum.CREATE_ROLES.value,
-        'remove_permissions_from_role': AppPermissionEnum.UPDATE_ROLES.value,
-        'add_permissions_to_role': AppPermissionEnum.UPDATE_ROLES.value,
-        'permissions': AppPermissionEnum.VIEW_PERMISSIONS.value,
+        'list': AppPermissionEnum.READ_PERMISSIONS.value,
+        'create': AppPermissionEnum.CREATE_PERMISSIONS.value,
+        'remove_permissions_from_role': AppPermissionEnum.REMOVE_PERMISSIONS.value,
+        'add_permissions_to_role': AppPermissionEnum.ADD_PERMISSIONS.value,
+        'permissions': AppPermissionEnum.READ_PERMISSIONS.value,
         'create_permissions': AppPermissionEnum.CREATE_PERMISSIONS.value,
     }
     

@@ -5,13 +5,15 @@ from django.core.validators import EmailValidator
 from django.db import models
 from conference.models import Conference
 from theme.models import MainTheme, SubTheme
+from user.enums.default_roles_enum import DefaultAppRolesEnum
 from user.enums.invitation_status import InvitationStatusEnum
 from user.enums.title import TITLE_ENUM
-from user.enums.user_role_action_enum import UserRoleActionEnum
 from user.model.role_model import Role
 from utils.validator import validate_phone_number
 from django.utils import timezone
-from django.db.models import Q
+from datetime import timedelta
+from django.db.models import Q, Count
+from django.db.models.functions import ExtractYear
 from django.db import transaction
 from django.contrib.auth.models import BaseUserManager
 from django.core.exceptions import ValidationError
@@ -86,7 +88,7 @@ class UserManager(BaseUserManager["User"]):
         )
 
 def get_default_role() -> uuid.UUID:
-    default_role = Role.objects.filter(name="User").first()
+    default_role = Role.objects.filter(name=DefaultAppRolesEnum.default()).first()
     if not default_role:
         raise Exception("Default role not found")
     return default_role.id
@@ -97,7 +99,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     middle_name = models.CharField(max_length=30, null=True, blank=True)
     last_name = models.CharField(max_length=30, null=True, blank=True)
     phone_number = models.CharField(max_length=15, validators=[validate_phone_number])
-    email = models.EmailField(max_length=100, unique=True, null=False, blank=False, validators=[EmailValidator(message="Please enter a valid email address")])
+    email = models.EmailField(
+        max_length=100,
+        unique=True, null=False,
+        blank=False,
+        validators=[
+            EmailValidator(message="Please enter a valid email address")
+            ]
+        )
     country = models.CharField(max_length=20, null=False, blank=False)
     is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
@@ -186,6 +195,75 @@ class User(AbstractBaseUser, PermissionsMixin):
         return cls.objects.filter(user_id__in=user_ids)
     
     @classmethod
+    def attendance_stats(cls):
+        """
+        Returns statistics about users who actually attended conferences.
+        
+        Returns a dictionary:
+        {
+            "total_users": int,
+            "attended_users": int,
+            "not_attended_users": int,
+            "attendance_percentage": float
+        }
+        """
+        total_users = cls.objects.filter(is_active=True, is_superuser=False).count()
+        
+        attended_users = cls.objects.filter(
+            attended_conferences__status='ATTENDED'
+        ).distinct().count()
+        
+        not_attended_users = total_users - attended_users
+        attendance_percentage = (attended_users / total_users * 100) if total_users else 0.0
+
+        return {
+            "total_users": total_users,
+            "attended_users": attended_users,
+            "not_attended_users": not_attended_users,
+            "attendance_percentage": round(attendance_percentage, 2)
+        }
+    
+    @classmethod
+    def registration_per_year_stats(cls):
+        """
+        Returns a queryset with the number of users registered per year.
+        
+        Returns:
+            QuerySet of dicts: [{"year": 2023, "count": 42}, ...]
+        """
+        qs = (
+            cls.objects
+            .annotate(year=ExtractYear('created_at'))
+            .values('year')
+            .annotate(count=Count('user_id'))
+            .order_by('year')
+        )
+        return qs
+    
+    @classmethod
+    def recent_registration_stats(cls, days: int = 7, limit: int = None):
+        """
+        Return users who registered within the last `days` days.
+        
+        Args:
+            days (int): Number of days to look back. Default is 7.
+            limit (int): Optional maximum number of users to return.
+        
+        Returns:
+            QuerySet: Users ordered by newest registration first.
+        """
+        cutoff = timezone.now() - timedelta(days=days)
+        qs = cls.objects.filter(
+            created_at__gte=cutoff,
+            is_active=True
+        ).order_by('-created_at')
+        
+        if limit:
+            qs = qs[:limit]
+        
+        return qs
+    
+    @classmethod
     def create_user(
         cls,
         title: str,
@@ -233,26 +311,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         return user
     
     @classmethod
-    def search_users(cls, search_query: str = None, staff: bool = None):
+    def filter_users(cls, search_query: str = None, staff: bool = None, created_from=None, created_to=None):
         """
-        Return users filtered by full name and/or staff status.
-
-        Args:
-            name (str, optional): Partial or full name to search (case-insensitive). Defaults to None.
-            staff (bool, optional): 
-                True = staff only
-                False = non-staff only
-                None = ignore staff filter
-        Returns:
-            QuerySet: filtered User queryset
+        Return users filtered by full name, staff status, and optional created_at range.
         """
         filters = Q(is_superuser=False)
-        
+
         if staff is True:
             filters &= Q(is_staff=True)
         elif staff is False:
             filters &= Q(is_staff=False)
-        
+
         if search_query:
             search_query = search_query.lower()
             filters &= (
@@ -261,30 +330,12 @@ class User(AbstractBaseUser, PermissionsMixin):
                 Q(last_name__icontains=search_query)
             )
 
+        if created_from:
+            filters &= Q(created_at__date__gte=created_from)
+        if created_to:
+            filters &= Q(created_at__date__lte=created_to)
+
         return cls.objects.filter(filters).order_by('-created_at')
-    
-    @classmethod
-    def change_role(cls, user_id: uuid.UUID, role_id: uuid.UUID, action: UserRoleActionEnum):
-        """
-        Assign or unassign a role to a user.
-        """
-        user = cls.objects.filter(user_id=user_id).first()
-        if user is None:
-            raise NotFound(detail="User with the given ID does not exist.")
-
-        role = Role.objects.filter(id=role_id).first()
-        if not role:
-            raise NotFound(detail="Role with the given ID does not exist.")
-
-        if action == UserRoleActionEnum.ASSIGN:
-            user.role = role
-        elif action == UserRoleActionEnum.UNASSIGN:
-            user.role = None
-        else:
-            raise ValidationError("Invalid action. Must be 'assign' or 'unassign'.")
-
-        user.save()
-        return user
     
     @classmethod
     def users(

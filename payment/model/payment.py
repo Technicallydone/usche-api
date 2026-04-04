@@ -38,6 +38,38 @@ class Payment(models.Model):
         return f"Payment {self.payment_id} - {self.user.full_name}"
     
     @classmethod
+    def payment_activity_stats(cls):
+        """
+        Returns statistics about users based on actual payments made.
+
+        Output:
+        {
+            "total_users": int,              # total users in system
+            "active_users": int,             # users who made at least one payment
+            "inactive_users": int,           # users with no payments
+            "active_percentage": float       # % of users who made payments
+        }
+        """
+        from user.models import User
+
+        total_users = User.objects.filter(is_active=True, is_superuser=False).count()
+
+        # Users who have made at least one payment
+        active_users = User.objects.filter(
+            payments__status=PaymentStatus.COMPLETED
+        ).distinct().count()
+
+        inactive_users = total_users - active_users
+        active_percentage = (active_users / total_users * 100) if total_users else 0.0
+
+        return {
+            "total_users": total_users,
+            "active_users": active_users,
+            "inactive_users": inactive_users,
+            "active_percentage": round(active_percentage, 2)
+        }
+    
+    @classmethod
     def users_without_payment(cls):
         return cls.objects.exclude(
             pk__in=Payment.objects.values_list('user_id', flat=True)

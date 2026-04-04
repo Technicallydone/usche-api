@@ -24,7 +24,9 @@ from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from django.contrib.auth import authenticate
 from services.email.tasks import send_email_task
 from usche_app import settings
+from user.enums.permission_enums import AppPermissionEnum
 from user.model.user_model import User
+from user.permissions import HasAppPermission
 from utils.access_token import generate_token, verify_token
 from django.utils import timezone
 
@@ -34,7 +36,18 @@ class AuthenticationViewSet(viewsets.ViewSet):
     MAX_FAILED_ATTEMPTS = 5
     LOCK_DURATION_MINUTES = 15
     
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasAppPermission]
+    
+    permission_mapping = {
+        'sign_out': AppPermissionEnum.SIGN_OUT.value,
+        'change_password': None,
+        'forgot_password': None,
+        'new_activation_email': None,
+        'activate_account': None,
+        'sign_in': None,
+        'sign_up': None,
+    }
+    
     authentication_classes = [
         TokenAuthentication,
         JWTAuthentication,
@@ -312,11 +325,11 @@ class AuthenticationViewSet(viewsets.ViewSet):
 
         except AuthenticationFailed as e:
             logger.warning(f"Authentication failed for {request.data.get('email')}: {str(e)}")
-            return Response({"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         except PermissionDenied as e:
             logger.warning(f"Permission denied for {request.data.get('email')}: {str(e)}")
-            return Response({"detail": str(e)}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.exception(f"Unexpected error during sign-in for {request.data.get('email')}: {str(e)}")
@@ -427,7 +440,8 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     
-    @action(detail=False, methods=["post"], url_path="sign-out")
+    @action(detail=False, methods=["post"], url_path="sign-out",
+            permission_classes=[permissions.IsAuthenticated, HasAppPermission])
     def sign_out(self, request: Request):
         serializer = SignOutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

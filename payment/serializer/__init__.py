@@ -4,3 +4,4 @@ from .upload_payment_slip_serializer import UploadPaymentSlipSerializer
 from .completed_payment_serializer import CompletedPaymentSerializer
 from .request_payment_detail import RequestPaymentDetailSerializer
 from .conference_payment_report_erializr import ConferencePaymentReportSerializer
+from .stats_serializers import PaymentActivityStatsSerializer

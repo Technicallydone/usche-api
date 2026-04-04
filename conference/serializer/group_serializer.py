@@ -1,7 +1,6 @@
-from conference.models import TargetGroup
 from rest_framework import serializers
+from conference.models import TargetGroup
 
-class TargetGroupSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TargetGroup
-        fields = '__all__'
+class TargetGroupSerializer(serializers.Serializer):
+    group_id = serializers.UUIDField()
+    group_name = serializers.CharField()
