@@ -1,18 +1,25 @@
 from rest_framework import serializers
-
 from payment.models import Payment
-from usche_app import settings
 from user.serializers import UserResponseSerializer
 
-class PaymentSerializer(serializers.ModelSerializer):
+
+class PaymentSerializer(serializers.Serializer):
+    payment_id = serializers.UUIDField()
+    user = UserResponseSerializer()
+
+    abstract = serializers.PrimaryKeyRelatedField(read_only=True)
+    conference = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+
     payment_slip = serializers.SerializerMethodField()
-    user = UserResponseSerializer() 
-    
-    class Meta:
-        model = Payment
-        fields = '__all__'
-        
-    def get_payment_slip(self, obj):
-        payment_id = obj.payment_id
-        
-        return f"{settings.PAYMENT_SLIP_URL}/{payment_id}/"
+
+    comment = serializers.CharField()
+    status = serializers.CharField()
+
+    rejected_by = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    timestamp = serializers.DateTimeField()
+
+    def get_payment_slip(self, obj: Payment):
+        return f"{self.context.get('payment_slip_url', '')}/{obj.payment_id}/"

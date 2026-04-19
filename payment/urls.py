@@ -3,8 +3,8 @@ from . import views
 
 router = DefaultRouter()
 
-router.register(r'payments', views.PaymentViewSet, basename='payment')
-router.register(r'payments', views.ConferencePaymentReportViewSet, basename='report')
+router.register(r'', views.PaymentViewSet, basename='payments')
+# router.register(r'payments', views.ConferencePaymentReportViewSet, basename='report')
 
 
 urlpatterns = router.urls

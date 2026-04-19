@@ -4,3 +4,4 @@ from .abstract_status_serializer import AbstractStatusUpdateSerializer
 from .qr_code_serializer import QRCodeVerificationSerializer
 from .paid_abstract_serializer import PaidAbstractSerializer
 from .request_retrieve_abstract import RequestRetrieveSerializer
+from .abstracts_query_serializer import AbstractQuerySerializer

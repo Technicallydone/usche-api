@@ -45,25 +45,42 @@ class AppPermissionEnum(str, Enum):
     CREATE_CONFERENCE = "permission.create.conference"
         
     # Theme Management
-    CREATE_MAIN_THEME = 'permission.create.main-theme',
-    UPDATE_MAIN_THEME = 'permission.update.main-theme',
-    READ_MAIN_THEME = 'permission.view.main-theme',
+    CREATE_MAIN_THEME = 'permission.create.main-theme'
+    UPDATE_MAIN_THEME = 'permission.update.main-theme'
+    READ_MAIN_THEME = 'permission.view.main-theme'
     DELETE_MAIN_THEME = 'permission.delete.main-theme'
     
-    CREATE_SUB_THEME = 'permission.create.sub-theme',
-    UPDATE_SUB_THEME = 'permission.update.sub-theme',
-    READ_SUB_THEME = 'permission.view.sub-theme',
+    CREATE_SUB_THEME = 'permission.create.sub-theme'
+    UPDATE_SUB_THEME = 'permission.update.sub-theme'
+    READ_SUB_THEME = 'permission.view.sub-theme'
     DELETE_SUB_THEME = 'permission.delete.sub-theme'
     
-    CREATE_SPEAKER = 'permission.create.speaker',
-    UPDATE_SPEAKER = 'permission.update.speaker',
-    READ_SPEAKER = 'permission.view.speaker',
+    CREATE_SPEAKER = 'permission.create.speaker'
+    UPDATE_SPEAKER = 'permission.update.speaker'
+    READ_SPEAKER = 'permission.view.speaker'
     DELETE_SPEAKER = 'permission.delete.speaker'
     
-    CREATE_SPONSOR = 'permission.create.sponsor',
-    UPDATE_SPONSOR = 'permission.update.sponsor',
+    CREATE_SPONSOR = 'permission.create.sponsor'
+    UPDATE_SPONSOR = 'permission.update.sponsor'
     READ_SPONSOR = 'permission.view.sponsor',
     DELETE_SPONSOR = 'permission.delete.sponsor'
+    
+    # Conference Abstracts
+    CREATE_ABSTRACT = "permission.create.abstract"
+    READ_ABSTRACT_ALL = "permission.view.abstract.all"
+    READ_ABSTRACT_OWN = "permission.view.abstract.own"
+    UPDATE_ABSTRACT = "permission.update.abstract"
+    DELETE_ABSTRACT = "permission.delete.abstract"
+
+    # Payments
+    CREATE_PAYMENTS = "permission.create.payments"
+    READ_PAYMENTS = "permission.view.payments"
+    READ_OWN_PAYMENTS = "permission.view.own.payments"
+    UPDATE_PAYMENTS = "permission.update.payments"
+    DELETE_PAYMENTS = "permission.delete.payments"
+    APPROVE_PAYMENTS = "permission.approve.payments"
+    REJECT_PAYMENTS = "permission.reject.payments"
+    VERIFY_PAYMENTS = "permission.verify.payments"
 
     @staticmethod
     def seed_permissions():

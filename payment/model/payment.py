@@ -38,6 +38,23 @@ class Payment(models.Model):
         return f"Payment {self.payment_id} - {self.user.full_name}"
     
     @classmethod
+    def get_conference_payments(cls, conference, status: str = None, search_query: str = None):
+        filters = Q(conference=conference)
+
+        if status:
+            filters &= Q(status=status)
+
+        if search_query:
+            search_query = search_query.strip().lower()
+            filters &= (
+                Q(user__first_name__icontains=search_query) |
+                Q(user__middle_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query)
+            )
+
+        return cls.objects.filter(filters).select_related("user", "conference", "abstract").order_by("-timestamp")
+    
+    @classmethod
     def payment_activity_stats(cls):
         """
         Returns statistics about users based on actual payments made.

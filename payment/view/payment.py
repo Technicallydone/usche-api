@@ -7,18 +7,28 @@ from django.http import Http404, HttpRequest
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from abstracts.models import Abstract
 from attendee.models import Attendee
 from conference.models import Conference
 from payment.enums.payment_status import PaymentStatus
 from payment.models import Payment
-from payment.serializers import PaymentStatusUpdateSerializer, CompletedPaymentSerializer, UploadPaymentSlipSerializer, RequestPaymentDetailSerializer, PaymentSerializer
+from payment.serializers import (
+    PaymentStatusUpdateSerializer,
+    CompletedPaymentSerializer,
+    UploadPaymentSlipSerializer,
+    RequestPaymentDetailSerializer,
+    PaymentSerializer,
+    PaymentQuerySerializer
+)
 from payment.tasks import process_payment_approval
 from services.email.tasks import send_email_task
 from usche_app import settings
 from django.db import transaction
 
+from user.enums.permission_enums import AppPermissionEnum
 from user.models import User
+from user.permissions import HasAppPermission
 from utils.beem_sms import BeemSMSClient
 from utils.send_email import send_payment_rejection_email
 from rest_framework.pagination import PageNumberPagination
@@ -27,7 +37,61 @@ from rest_framework.pagination import PageNumberPagination
 logger = logging.getLogger(__name__)
 
 class PaymentViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasAppPermission]
+
+    permission_mapping = {
+        'list': AppPermissionEnum.READ_PAYMENTS.value,
+        "approved": AppPermissionEnum.READ_PAYMENTS.value,
+        "pending_payments": AppPermissionEnum.READ_PAYMENTS.value,
+        "retrieve_payment": AppPermissionEnum.READ_OWN_PAYMENTS.value,
+        "upload_payment_slip": AppPermissionEnum.CREATE_PAYMENTS.value,
+        "read_payment_slip": AppPermissionEnum.READ_PAYMENTS.value,
+        "complete_payment": AppPermissionEnum.APPROVE_PAYMENTS.value,
+        "reject_payment": AppPermissionEnum.REJECT_PAYMENTS.value,
+    }
+    
+    def list(self, request: Request):
+        serializer = PaymentQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data
+
+        conference_id = validated_data.get("conference_id")
+        payment_status = validated_data.get("status")
+        search = validated_data.get("search")
+
+        try:
+            conference = Conference.objects.get(conference_id=conference_id)
+
+            payments = Payment.get_conference_payments(
+                conference=conference,
+                status=payment_status,
+                search_query=search,
+            )
+
+            paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
+            page = paginator.paginate_queryset(payments, request)
+
+            if page is not None:
+                serializer = PaymentSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer = PaymentSerializer(payments, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Conference.DoesNotExist:
+            return Response(
+                {"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=False, methods=["get"])
     def approved(self, request: HttpRequest):
