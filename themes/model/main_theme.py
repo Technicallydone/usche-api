@@ -5,13 +5,19 @@ from conference.models import Conference
 
 class MainTheme(models.Model):
     theme_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    conference = models.ForeignKey(Conference, on_delete=models.CASCADE, related_name="theme")
-    title = models.CharField(max_length=255, unique=True)
-    decription = models.TextField(null=False)
+    
+    conference = models.OneToOneField(
+        Conference,
+        on_delete=models.CASCADE,
+        related_name="theme"
+    )
+    
+    title = models.CharField(max_length=255)
+    description = models.TextField(null=False)
     
     class Meta:
-        db_table = 'main_theme'
-        app_label = 'theme'
+        db_table = 'main_themes'
+        app_label = 'themes'
     
     def __str__(self) -> str:
         return f"{self.title}"

@@ -3,36 +3,46 @@ from django.http import FileResponse, Http404
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.request import Request
+from rest_framework.exceptions import ValidationError
 import logging
 
+from conference.model.conference import Conference
 from sponsors.models import Sponsor
+from sponsors.serializers import CreateSponsorSerializer
 from usche_app import settings
+from user.enums.permission_enums import AppPermissionEnum
+from user.permissions import HasAppPermission
 
 logger = logging.getLogger(__name__)
 
 class SponsorViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated, HasAppPermission]
+    
+    permission_mapping = {
+        'create': AppPermissionEnum.CREATE_SPONSOR.value,
+    }
 
-    @action(detail=False, methods=['get'], url_path='sponsor-logo/(?P<image_id>[^/]+)')
-    def sponsor_logo(self, request, image_id):
+    def create(self, request: Request):
+        serializer = CreateSponsorSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
         try:
-            # Retrieve the Sponsor object by Sponsor_id
-            sponsor_data = Sponsor.objects.get(sponsor_id=image_id)
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
             
-            # Get the image filename directly from the Sponsor image field
-            image_filename = sponsor_data.logo.name  # This gives the full path relative to MEDIA_ROOT
-            image_path = os.path.join(settings.MEDIA_ROOT, image_filename)
-
-            # Check if the image exists
-            if not os.path.exists(image_path):
-                raise Http404("Image not found")
-
-            # Serve the image as a response
-            return FileResponse(open(image_path, 'rb'), content_type="image/jpeg")
-
-        except Sponsor.DoesNotExist:
-            logger.error(f"Sponsor with id {image_id} not found.")
-            return Response(data={"detail": "Sponsor not found"}, status=status.HTTP_404_NOT_FOUND)
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            sponsor = Sponsor.objects.create(
+                conference=conference,
+                name=validated_data.get('name'),
+                logo=validated_data.get('logo'),
+                website=validated_data.get('website'),
+                contact_email=validated_data.get('contact_email'),
+                priority=validated_data.get('priority')
+            )
+            return Response({"detail": "Sponsor created", "id": sponsor.sponsor_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Error while retrieving Sponsor image: {e}")
-            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

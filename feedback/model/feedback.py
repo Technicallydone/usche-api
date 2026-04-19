@@ -14,5 +14,5 @@ class FeedbackAnswer(models.Model):
         return f"Answer to {self.question.id}"
 
     class Meta:
-        db_table = "feedback"
+        db_table = "feedbacks"
         app_label = "feedback"

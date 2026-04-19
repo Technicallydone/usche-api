@@ -15,7 +15,7 @@ class BankAccount(models.Model):
     swift_code = models.CharField(max_length=20, null=False, blank=False)
 
     class Meta:
-        db_table = 'bank_account'
+        db_table = 'bank_accounts'
         app_label = 'conference'
 
     def __str__(self):

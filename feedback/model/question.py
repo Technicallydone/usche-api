@@ -18,5 +18,5 @@ class Question(models.Model):
         return f"{self.question} ({self.conference.conference_name})"
     
     class Meta:
-        db_table = 'question'
+        db_table = 'questions'
         app_label = 'feedback'

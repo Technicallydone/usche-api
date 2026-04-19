@@ -10,7 +10,7 @@ class TargetGroup(models.Model):
     group_name = models.CharField(max_length=255, null=False, blank=False)
     
     class Meta:
-        db_table = 'target_group'
+        db_table = 'target_groups'
         app_label = 'conference'
         
         

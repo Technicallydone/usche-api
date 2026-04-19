@@ -10,7 +10,7 @@ from usche_app import settings
 
 logger = logging.getLogger(__name__)
 
-class SpeakerViewSet(viewsets.ViewSet):
+class SpeakerImageViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny]
 
     @action(detail=False, methods=['get'], url_path='speaker-image/(?P<image_id>[^/]+)')

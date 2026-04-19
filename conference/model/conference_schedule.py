@@ -26,7 +26,7 @@ class ConferenceSchedule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "conference_schedule"
+        db_table = "conference_scheduls"
         app_label = "conference"
         ordering = ["date", "start_time"]
 

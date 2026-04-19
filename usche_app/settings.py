@@ -103,7 +103,7 @@ INSTALLED_APPS = [
     "settings",
     "user",
     "conference",
-    "theme",
+    "themes",
     "speakers",
     "sponsors",
     "attendee",

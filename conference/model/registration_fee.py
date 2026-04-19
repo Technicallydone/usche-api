@@ -18,7 +18,7 @@ class RegistrationFee(models.Model):
     late_registration_fee = models.CharField(max_length=100, null=False, blank=False)
 
     class Meta:
-        db_table = 'registration_fee'
+        db_table = 'registration_fees'
         app_label = 'conference'
 
     def __str__(self):

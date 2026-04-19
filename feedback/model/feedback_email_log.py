@@ -12,7 +12,7 @@ class FeedbackEmailLog(models.Model):
 
     class Meta:
         unique_together = ('user', 'conference')
-        db_table = "feedback_email_log"
+        db_table = "feedback_email_logs"
         app_label = "feedback"
 
     def __str__(self):

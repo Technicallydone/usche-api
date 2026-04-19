@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from theme.models import MainTheme
+from themes.models import MainTheme
 
 class MainThemeAdmin(admin.ModelAdmin):
     list_display = ('title', 'conference_link', 'view_details')

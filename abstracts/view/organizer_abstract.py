@@ -10,7 +10,7 @@ from abstracts.serializers import AbstractSerializer, AbstractStatusUpdateSerial
 from attendee.model.attendee import Attendee
 from conference.models import Conference
 from services.email.tasks import send_email_task
-from theme.models import MainTheme
+from themes.models import MainTheme
 from django.db import transaction
 from rest_framework.pagination import PageNumberPagination
 

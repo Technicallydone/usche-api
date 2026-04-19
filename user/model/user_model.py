@@ -4,7 +4,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.validators import EmailValidator
 from django.db import models
 from conference.models import Conference
-from theme.models import MainTheme, SubTheme
+from themes.models import MainTheme, SubTheme
 from user.enums.default_roles_enum import DefaultAppRolesEnum
 from user.enums.invitation_status import InvitationStatusEnum
 from user.enums.title import TITLE_ENUM

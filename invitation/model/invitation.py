@@ -17,7 +17,7 @@ class Invitation(models.Model):
     invited_on = models.DateTimeField(default=timezone.now)
     
     class Meta:
-        db_table = 'invitation'
+        db_table = 'invitations'
         app_label = 'invitation'
         
     def __str__(self):

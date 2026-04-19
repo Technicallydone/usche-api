@@ -12,5 +12,5 @@ class Option(models.Model):
         return f"{self.option}"
     
     class Meta:
-        db_table = 'question_option'
+        db_table = 'question_options'
         app_label = 'feedback'

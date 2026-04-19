@@ -11,5 +11,5 @@ class Topic(models.Model):
     description = models.TextField(null=False, blank=False)
     
     class Meta:
-        db_table = 'topic'
+        db_table = 'topics'
         app_label = 'conference'

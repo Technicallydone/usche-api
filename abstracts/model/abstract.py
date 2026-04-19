@@ -3,9 +3,7 @@ import uuid
 from django.db import models, transaction
 from django.db.models import Q
 from abstracts.enums.abstract_status import AbstractStatus
-from payment.enums.payment_status import PaymentStatus
-from theme.model.main_theme import MainTheme
-from theme.models import SubTheme
+from themes.models import SubTheme, MainTheme
 from user.models import User
 from utils.upload_document_to import upload_abstract_document
 from utils.validator import validate_document_type

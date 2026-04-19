@@ -1,1 +1,2 @@
+from .sponsor_logo_view import SponsorLogoViewSet
 from .sponsor_view import SponsorViewSet

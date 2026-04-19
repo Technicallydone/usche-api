@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from theme.models import SubTheme
+from themes.models import SubTheme
 
 class SubThemeAdmin(admin.ModelAdmin):
     list_display = ('title', 'theme_link', 'view_details')

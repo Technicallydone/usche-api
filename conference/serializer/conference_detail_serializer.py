@@ -7,7 +7,7 @@ from conference.serializer.resgistration_fee_serializer import RegistrationFeeSe
 from conference.serializer.schedule_day_serializer import ScheduleDaySerializer
 from speakers.serializer.speaker_serializer import SpeakerSerializer
 from sponsors.serializer.sponsor_serializer import SponsorSerializer
-from theme.serializer.themes_serializer import ThemeSerializer
+from themes.serializer.themes_serializer import ThemeSerializer
 from usche_app import settings
 
 
@@ -29,6 +29,8 @@ class ConferenceDetailSerializer(serializers.Serializer):
     capacity = serializers.IntegerField()
     listing_date = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+    
+    year = serializers.CharField()
 
     abstract_submission_deadline = serializers.DateTimeField()
     registration_open = serializers.BooleanField()
@@ -38,7 +40,7 @@ class ConferenceDetailSerializer(serializers.Serializer):
     sponsors = SponsorSerializer(many=True)
     speakers = SpeakerSerializer(many=True)
     attendees = AttendeeSerializer(many=True)
-    theme = ThemeSerializer(many=True)
+    theme = ThemeSerializer()
     registration_fees = RegistrationFeeSerializer(many=True)
 
     schedule_days = ScheduleDaySerializer(many=True)

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from abstracts.models import Abstract
 from abstracts.serializers import AbstractSubmissionSerializer, AbstractSerializer, RequestRetrieveSerializer
-from theme.models import SubTheme
+from themes.models import SubTheme
 from usche_app import settings
 from user.models import User
 from django.db import transaction

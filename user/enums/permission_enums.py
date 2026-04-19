@@ -42,6 +42,28 @@ class AppPermissionEnum(str, Enum):
     READ_CONFERENCE = "permission.view.conference"
     UPDATE_CONFERENCE = "permission.update.conference"
     DELETE_CONFERENCE = "permission.delete.conference"
+    CREATE_CONFERENCE = "permission.create.conference"
+        
+    # Theme Management
+    CREATE_MAIN_THEME = 'permission.create.main-theme',
+    UPDATE_MAIN_THEME = 'permission.update.main-theme',
+    READ_MAIN_THEME = 'permission.view.main-theme',
+    DELETE_MAIN_THEME = 'permission.delete.main-theme'
+    
+    CREATE_SUB_THEME = 'permission.create.sub-theme',
+    UPDATE_SUB_THEME = 'permission.update.sub-theme',
+    READ_SUB_THEME = 'permission.view.sub-theme',
+    DELETE_SUB_THEME = 'permission.delete.sub-theme'
+    
+    CREATE_SPEAKER = 'permission.create.speaker',
+    UPDATE_SPEAKER = 'permission.update.speaker',
+    READ_SPEAKER = 'permission.view.speaker',
+    DELETE_SPEAKER = 'permission.delete.speaker'
+    
+    CREATE_SPONSOR = 'permission.create.sponsor',
+    UPDATE_SPONSOR = 'permission.update.sponsor',
+    READ_SPONSOR = 'permission.view.sponsor',
+    DELETE_SPONSOR = 'permission.delete.sponsor'
 
     @staticmethod
     def seed_permissions():

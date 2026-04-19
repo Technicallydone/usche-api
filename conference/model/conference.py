@@ -2,7 +2,7 @@ import uuid
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from utils.upload_document_to import upload_certificate_template
+from utils.upload_document_to import upload_certificate_template, upload_id_badge_template
 from utils.validator import validate_future_date
 
 class Conference(models.Model):
@@ -27,18 +27,24 @@ class Conference(models.Model):
         blank=True,
         help_text="Upload the SVG or image file used as the certificate background"
     )
-
+    
+    id_badge_background = models.FileField(
+        upload_to=upload_id_badge_template,
+        null=True,
+        blank=True,
+        help_text="Upload the background template for ID badges"
+    )
     
     registration_open = models.BooleanField(default=False)
     
-    year = models.CharField(blank=False, null=False, default='2025')
+    year = models.CharField(blank=False, null=False, default='2025/2026')
 
     listing_date = models.DateTimeField(default=timezone.now, editable=False)
     updated_at = models.DateTimeField(auto_now=True)
     
 
     class Meta:
-        db_table = 'conference'
+        db_table = 'conferences'
         app_label = 'conference'
         
     def __str__(self) -> str:

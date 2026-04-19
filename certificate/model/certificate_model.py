@@ -18,7 +18,7 @@ class Certificate(models.Model):
     is_created = models.BooleanField(default=False)
 
     class Meta:
-        db_table = 'certificate'
+        db_table = 'certificates'
         app_label = 'certificate'
 
     def __str__(self):

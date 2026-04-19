@@ -3,17 +3,46 @@ import os
 from django.http import FileResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
-from conference.models import Conference
+from abstracts.models import Abstract
+from attendee.models import Attendee
+from conference.models import BankAccount
+from conference.models import (
+    ConferenceSchedule,
+    TargetGroup,
+    RegistrationFee,
+    ScheduleDay,
+    Conference
+)
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from conference.serializers import (
     ConferenceSerailizer,
-    ConferenceDetailSerializer
+    ConferenceDetailSerializer,
+    CreateConferenceSerializer,
+    CreateVenueSerializer,
+    CreateRegistrationFeeSerializer,
+    CreateTargetGroupSerializer,
+    CreateBankAccountSerializer,
+    CreateScheduleDaySerializer,
+    CreateConferenceScheduleSerializer,
+    ConferenceStatsSerializer,
+    UpdateConferenceSerializer,
+    UpdateRegistrationFeeSerializer,
+    UpdateTargetGroupSerializer,
+    UpdateBankAccountSerializer,
+    UpdateScheduleDaySerializer,
+    UpdateConferenceScheduleSerializer,
+    SVGUploadSerializer
 )
-from usche_app import settings
+from payment.model.payment import Payment
+from speakers.models import Speaker
+from sponsors.models import Sponsor
+from themes.models import MainTheme, SubTheme
 from user.enums.permission_enums import AppPermissionEnum
+from user.model.user_model import User
 from user.permissions import HasAppPermission
 from rest_framework.request import Request
+from rest_framework.exceptions import ValidationError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,8 +53,532 @@ class ConferenceViewSet(viewsets.ViewSet):
     permission_mapping = {
         'list': AppPermissionEnum.READ_CONFERENCE.value,
         'retrieve': AppPermissionEnum.READ_CONFERENCE.value,
-        'retrieve_certificat_template': AppPermissionEnum.READ_CONFERENCE.value
+        'retrieve_certificat_template': AppPermissionEnum.READ_CONFERENCE.value,
+        'retrieve_id_badge_template': AppPermissionEnum.READ_CONFERENCE.value,
+        'create': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'create_venue': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'create_registration_fee': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'create_target_group': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'create_bank_account': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'create_schedule_day': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'create_conference_schedule': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'stats': AppPermissionEnum.READ_CONFERENCE_STATS.value,
+        'update_id_badge_background': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'update_certificate_background': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'update': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'update_venue': AppPermissionEnum.UPDATE_CONFERENCE.value
     }
+    
+    @action(detail=True, methods=['get'], url_path='stats')
+    def stats(self, request, pk=None):
+        if not pk:
+            return Response(
+                {"detail": "Conference ID is mandatory"},
+                status=status.HTTP_406_NOT_ACCEPTABLE
+            )
+        
+        try:
+            # Get conference
+            conference = Conference.get_conference_by_id(conference_id=pk)
+            if not conference:
+                return Response(
+                    {"detail": "No conference found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # -----------------------------
+            # User statistics
+            # -----------------------------
+            attendance_stats = User.attendance_stats()
+            registration_per_year_stats = User.registration_per_year_stats()
+            recent_registration_stats = User.recent_registration_stats(days=7, limit=10)
+
+            # -----------------------------
+            # Payment statistics
+            # -----------------------------
+            total_payments, total_join_requests, total_pending_join_requests, total_abstract_payments = Payment.conference_payment_stats(conference=conference)
+            payment_activity_stats = Payment.payment_activity_stats()
+
+            # -----------------------------
+            # Conference theme & targets
+            # -----------------------------
+            theme = MainTheme.get_theme_by_conference(conference)
+            if not theme:
+                return Response(
+                    {"detail": f"No main theme found for {conference.conference_name}"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            total_sub_theme = SubTheme.get_total_theme_subthemes(theme=theme)
+            total_conference_target_groups = TargetGroup.total_conference_target_groups(conference=conference)
+
+            # -----------------------------
+            # Attendee statistics
+            # -----------------------------
+            total_users = User.total_users()
+            total_attendees = Attendee.total_conference_attendees(conference=conference)
+
+            # -----------------------------
+            # Abstract statistics
+            # -----------------------------
+            total_abstracts, total_paid_abstracts, total_unpaid_abstracts, total_approved_abstracts = Abstract.abstract_stats(main_theme=theme)
+
+            # -----------------------------
+            # Build stats dictionary
+            # -----------------------------
+            stats = {
+                "conference": {
+                    "conference_name": conference.conference_name,
+                    "start_date": conference.start_date,
+                    "end_date": conference.end_date,
+                    "capacity": conference.capacity,
+                    "venue": conference.venue_name,
+                    "total_sub_themes": total_sub_theme,
+                    "total_target_groups": total_conference_target_groups,
+                },
+                "attendees": {
+                    "total_users": total_users,
+                    "total_attendees": total_attendees,
+                    "attendance_stats": attendance_stats,
+                    "registration_per_year_stats": list(registration_per_year_stats),
+                    "recent_registration_stats": [
+                        {
+                            "id": u.user_id,
+                            "full_name": u.full_name,
+                            "email": u.email,
+                            "created_at": u.created_at
+                        } for u in recent_registration_stats
+                    ],
+                },
+                "abstracts": {
+                    "total_abstracts": total_abstracts,
+                    "total_paid_abstracts": total_paid_abstracts,
+                    "total_unpaid_abstracts": total_unpaid_abstracts,
+                    "total_approved_abstracts": total_approved_abstracts,
+                },
+                "payments": {
+                    "total_payments": total_payments,
+                    "total_join_requests": total_join_requests,
+                    "total_pending_join_requests": total_pending_join_requests,
+                    "total_abstract_payments": total_abstract_payments,
+                    "payment_activity_stats": payment_activity_stats,
+                }
+            }
+
+            serializer = ConferenceStatsSerializer(data=stats)
+            serializer.is_valid(raise_exception=True)
+            return Response({"stats": serializer.data}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Unexpected error occurred: {e}", exc_info=True)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            
+    @action(detail=False, methods=['post'], url_path='venue/update')
+    def update_venue(self, request: Request):
+        serializer = CreateVenueSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data
+
+        try:
+            conference = Conference.get_conference_by_id(
+                conference_id=validated_data.get("conference_id")
+            )
+
+            if conference is None:
+                return Response(
+                    data={"detail": "Conference not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            conference.venue_name = validated_data.get("venue_name")
+            conference.venue_website = validated_data.get("venue_website")
+            conference.venue_description = validated_data.get("venue_description")
+            conference.venue_directions = validated_data.get("venue_directions")
+
+            conference.save(
+                update_fields=[
+                    "venue_name",
+                    "venue_website",
+                    "venue_description",
+                    "venue_directions",
+                ]
+            )
+
+            return Response(
+                data={
+                    "detail": "Venue updated successfully",
+                    "id": conference.conference_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except ValidationError as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=False, methods=['post'], url_path='venue/create')
+    def create_venue(self, request: Request):
+        serializer = CreateVenueSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        
+        try:
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            conference.venue_name = validated_data.get('venue_name')
+            conference.venue_website = validated_data.get('venue_website')
+            conference.venue_description = validated_data.get('venue_description')
+            conference.venue_directions = validated_data.get('venue_directions')
+            
+            conference.save(update_fields=['venue_name', 'venue_website', 'venue_description', 'venue_directions'])
+            
+            return Response({"detail": "Venue created", "id": conference.conference_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['post'], url_path='registration-fee/create')
+    def create_registration_fee(self, request: Request):
+        serializer = CreateRegistrationFeeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        try:
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            fee = RegistrationFee.objects.create(
+                conference=conference,
+                category=validated_data.get('category'),
+                early_bird_fee=validated_data.get('early_bird_fee'),
+                late_registration_fee=validated_data.get('late_registration_fee'),
+            )
+            return Response({"detail": "Registration fee created", "id": fee.fee_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='target-group/create')
+    def create_target_group(self, request: Request):
+        serializer = CreateTargetGroupSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        try:
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            group = TargetGroup.objects.create(
+                conference=conference,
+                group_name=validated_data.get('group_name'),
+            )
+            return Response({"detail": "Target group created", "id": group.group_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='bank-account/create')
+    def create_bank_account(self, request: Request):
+        serializer = CreateBankAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        try:
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            account = BankAccount.objects.create(
+                conference=conference,
+                account_name=validated_data.get('account_name'),
+                account_number=validated_data.get('account_number'),
+                bank_name=validated_data.get('bank_name'),
+                currency=validated_data.get('currency'),
+                bank_code=validated_data.get('bank_code'),
+                swift_code=validated_data.get('swift_code'),
+            )
+            return Response({"detail": "Bank account created", "id": account.account_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='schedule-day/create')
+    def create_schedule_day(self, request: Request):
+        serializer = CreateScheduleDaySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        try:
+            conference = Conference.get_conference_by_id(conference_id=validated_data.get('conference_id'))
+            
+            if conference is None:
+                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            day = ScheduleDay.objects.create(
+                conference=conference,
+                date=validated_data.get('date'),
+                title=validated_data.get('title'),
+                location=validated_data.get('location'),
+            )
+            return Response({"detail": "Schedule day created", "id": day.schedule_day_id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='conference-schedule/create')
+    def create_conference_schedule(self, request: Request):
+        serializer = CreateConferenceScheduleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+        try:
+            schedule_day = ScheduleDay.get_by_id(schedule_day_id=validated_data.get('schedule_day_id'))
+            
+            if schedule_day is None:
+                return Response(data={"detail": "Scheduled day not found"}, status=status.HTTP_404_NOT_FOUND)
+            
+            schedule = ConferenceSchedule.objects.create(
+                schedule_day=schedule_day,
+                date=validated_data.get('date'),
+                start_time=validated_data.get('start_time'),
+                end_time=validated_data.get('end_time'),
+                activity=validated_data.get('activity'),
+                speaker=validated_data.get('speaker'),
+                moderator=validated_data.get('moderator'),
+                hall=validated_data.get('hall'),
+                session_type=validated_data.get('session_type'),
+            )
+            return Response({"detail": "Conference schedule created", "id": schedule.id}, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+    
+    def create(self, request: Request):
+        serializer = CreateConferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        try:
+            conference = Conference.objects.create(
+                conference_name=validated_data.get('conference_name'),
+                description=validated_data.get('description'),
+                start_date=validated_data.get('start_date'),
+                end_date=validated_data.get('end_date'),
+                start_time=validated_data.get('start_time'),
+                end_time=validated_data.get('end_time'),
+                capacity=validated_data.get('capacity'),
+                abstract_submission_deadline=validated_data.get('abstract_submission_deadline'),
+                registration_open=validated_data.get('registration_open', False),
+                year=validated_data.get('year'),
+                certificate_background=validated_data.get('certificate_background'),
+                id_badge_background=validated_data.get('id_badge_background'),
+            )
+            
+            return Response(
+                data={"detail": "Conference created successfully", "id": conference.conference_id},
+                status=status.HTTP_201_CREATED
+            )
+        except ValidationError as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def update(self, request: Request, pk=None):
+        serializer = UpdateConferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data
+
+        try:
+            conference = Conference.objects.get(conference_id=pk)
+
+            conference.conference_name = validated_data.get("conference_name")
+            conference.description = validated_data.get("description")
+            conference.start_date = validated_data.get("start_date")
+            conference.end_date = validated_data.get("end_date")
+            conference.start_time = validated_data.get("start_time")
+            conference.end_time = validated_data.get("end_time")
+            conference.capacity = validated_data.get("capacity")
+            conference.abstract_submission_deadline = validated_data.get("abstract_submission_deadline")
+            conference.registration_open = validated_data.get("registration_open")
+            conference.year = validated_data.get("year")
+
+            conference.save()
+
+            return Response(
+                data={
+                    "detail": "Conference updated successfully",
+                    "id": conference.conference_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Conference.DoesNotExist:
+            return Response(
+                data={"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except ValidationError as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as e:
+            return Response(
+                data={"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+    @action(detail=True, methods=["post"], url_path="certificate-background")
+    def update_certificate_background(self, request, pk=None):
+        serializer = SVGUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["file"]
+
+        try:
+            conference = Conference.objects.get(pk=pk)
+
+            if conference.certificate_background:
+                old_path = conference.certificate_background.path
+                if os.path.isfile(old_path):
+                    os.remove(old_path)
+
+            conference.certificate_background = file
+            conference.save(update_fields=["certificate_background"])
+
+            return Response(
+                {
+                    "detail": "Certificate background updated successfully",
+                    "id": conference.conference_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Conference.DoesNotExist:
+            return Response(
+                {"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+    @action(detail=True, methods=["post"], url_path="id-badge-background")
+    def update_id_badge_background(self, request, pk=None):
+        serializer = SVGUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file = serializer.validated_data["file"]
+
+        try:
+            conference = Conference.objects.get(pk=pk)
+
+            if conference.id_badge_background:
+                old_path = conference.id_badge_background.path
+                if os.path.isfile(old_path):
+                    os.remove(old_path)
+
+            conference.id_badge_background = file
+            conference.save(update_fields=["id_badge_background"])
+
+            return Response(
+                {
+                    "detail": "ID badge background updated successfully",
+                    "id": conference.conference_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Conference.DoesNotExist:
+            return Response(
+                {"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+            
+    @action(detail=True, methods=['get'], url_path='badge-template')
+    def retrieve_id_badge_template(self, request: Request, pk=None):
+        if pk is None:
+            return Response(
+                {"detail": "No conference ID provided"},
+                status=status.HTTP_406_NOT_ACCEPTABLE
+            )
+
+        try:
+            conference = Conference.objects.get(conference_id=pk)
+
+            if not conference.certificate_background:
+                return Response(
+                    {"detail": "No id badge template uploaded"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            file_path = conference.id_badge_background.path
+
+            if not os.path.exists(file_path):
+                return Response(
+                    {"detail": "Id badge template not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            content_type, _ = mimetypes.guess_type(file_path)
+
+            return FileResponse(
+                open(file_path, 'rb'),
+                content_type=content_type or 'application/octet-stream'
+            )
+
+        except Conference.DoesNotExist:
+            logger.error(f"Conference with id {pk} not found.")
+            return Response(
+                {"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        except Exception as e:
+            logger.error(f"Error while retrieving id badge certificate template: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'], url_path='certificate-template')
     def retrieve_certificat_template(self, request: Request, pk=None):

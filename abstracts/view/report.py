@@ -7,7 +7,7 @@ from rest_framework.decorators import action
 from abstracts.models import Abstract
 from abstracts.serializers import AbstractSerializer
 from conference.models import Conference
-from theme.models import MainTheme
+from themes.models import MainTheme
 from user.models import User
 
 logger = logging.getLogger(__name__)

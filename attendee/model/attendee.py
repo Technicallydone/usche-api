@@ -19,7 +19,7 @@ class Attendee(models.Model):
     )
     
     class Meta:
-        db_table = 'attendee'
+        db_table = 'attendees'
         app_label = 'attendee'
 
     def __str__(self):

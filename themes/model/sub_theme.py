@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 
-from theme.model.main_theme import MainTheme
+from themes.model.main_theme import MainTheme
 
 class SubTheme(models.Model):
     sub_theme_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -10,8 +10,8 @@ class SubTheme(models.Model):
     description = models.TextField(null=False, blank=False)
     
     class Meta:
-        db_table = 'sub_theme'
-        app_label = 'theme'
+        db_table = 'sub_themes'
+        app_label = 'themes'
         
     def __str__(self) -> str:
         return f"{self.title}"

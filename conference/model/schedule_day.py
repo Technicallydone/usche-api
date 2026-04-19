@@ -10,12 +10,16 @@ class ScheduleDay(models.Model):
     location = models.CharField(max_length=255, blank=True)
 
     class Meta:
-        db_table = "schedule_day"
+        db_table = "schedule_days"
         app_label = "conference"
         ordering = ["date"]
 
     def __str__(self):
         return f"{self.conference.conference_name} - {self.title}"
+    
+    @classmethod
+    def get_by_id(cls, schedule_day_id: uuid.UUID):
+        return cls.objects.filter(schedule_day_id=schedule_day_id)
     
     @classmethod
     def get_by_conference(cls, conference: Conference):

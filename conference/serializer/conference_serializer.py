@@ -16,6 +16,7 @@ class ConferenceSerailizer(serializers.Serializer):
     capacity = serializers.IntegerField()
     abstract_submission_deadline = serializers.DateTimeField()
     certificate_background = serializers.FileField(allow_null=True, required=False)
+    id_badge_background = serializers.FileField(allow_null=True, required=False)
     registration_open = serializers.BooleanField()
     year = serializers.CharField()
     listing_date = serializers.DateTimeField()

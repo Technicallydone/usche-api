@@ -17,7 +17,7 @@ class CertificateZip(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = 'certificate_zip'
+        db_table = 'certificate_zips'
         app_label = 'certificate'
 
     def __str__(self):

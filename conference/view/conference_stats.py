@@ -7,7 +7,7 @@ from attendee.models import Attendee
 from conference.models import Conference, TargetGroup
 from conference.serializers import ConferenceStatsSerializer
 from payment.models import Payment
-from theme.models import MainTheme, SubTheme
+from themes.models import MainTheme, SubTheme
 from user.enums.permission_enums import AppPermissionEnum
 from user.models import User
 from user.permissions import HasAppPermission

@@ -1,6 +1,9 @@
 from django.core.exceptions import ValidationError
 from datetime import date
 import re
+import os
+from rest_framework import serializers
+from PIL import Image
 
 def validate_phone_number(value: str):
     """
@@ -44,3 +47,31 @@ def validate_pdf_document(file):
     
     if extension not in allowed_extensions:
         raise ValidationError(f"Invalid file type. Only {', '.join(allowed_extensions)} are allowed.")
+    
+
+def validate_svg(file):
+    ext = os.path.splitext(file.name)[1].lower()
+    
+    if ext != ".svg":
+        raise serializers.ValidationError("Only SVG files are allowed.")
+    
+    if file.content_type not in ["image/svg+xml"]:
+        raise serializers.ValidationError("Invalid SVG file.")
+    
+    return file
+
+def validate_image_file(file):
+    try:
+        image = Image.open(file)
+        image.verify()
+    except Exception:
+        raise serializers.ValidationError("Invalid image file.")
+
+    if image.format not in ["JPEG", "PNG", "WEBP"]:
+        raise serializers.ValidationError(
+            "Only JPEG, PNG, or WEBP images are allowed."
+        )
+
+    file.seek(0)
+
+    return file
