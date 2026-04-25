@@ -4,18 +4,20 @@ import os
 from typing import cast
 from rest_framework.request import Request
 
-from django.http import Http404, HttpRequest
+from django.http import FileResponse, Http404
 from django.db import transaction
 
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 
+from abstracts.enums.abstract_status import AbstractStatus
 from abstracts.models import Abstract
 from abstracts.serializers import (
     AbstractSubmissionSerializer,
     AbstractSerializer,
-    AbstractQuerySerializer
+    AbstractQuerySerializer,
+    AbstractDecisionSerializer
 )
 from themes.models import MainTheme
 from themes.models import SubTheme
@@ -33,10 +35,243 @@ class AbstractViewSet(viewsets.ViewSet):
 
     permission_mapping = {
         'list': AppPermissionEnum.READ_ABSTRACT_ALL.value,
-        "read_document": AppPermissionEnum.READ_ABSTRACT_ALL.value,
-        "mine": AppPermissionEnum.READ_ABSTRACT_OWN.value,
-        "submit_abstract": AppPermissionEnum.CREATE_ABSTRACT.value,
+        'retrieve': AppPermissionEnum.READ_ABSTRACT_ALL.value,
+        'read_document': AppPermissionEnum.READ_ABSTRACT.value,
+        'mine': AppPermissionEnum.READ_ABSTRACT_OWN.value,
+        'mine_by_id': AppPermissionEnum.READ_ABSTRACT_OWN.value,
+        'submit_abstract': AppPermissionEnum.CREATE_ABSTRACT.value,
+        'download_document': AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT.value,
+        'reject': AppPermissionEnum.APPROVE_ABSTRACT.value,
+        'approve': AppPermissionEnum.REJECT_ABSTRACT.value,
+        'create': AppPermissionEnum.CREATE_ABSTRACT.value
     }
+    
+    @action(detail=True, methods=["get"], url_path="mine")
+    def mine_by_id(self, request: Request, pk=None):
+        user = cast(User, request.user)
+
+        try:
+            abstract = Abstract.objects.get(
+                pk=pk,
+                user=user
+            )
+
+            serializer = AbstractSerializer(abstract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Abstract.DoesNotExist:
+            return Response(
+                {"detail": "Abstract not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=False, methods=["get"], url_path="mine")
+    def mine(self, request: Request):
+        user = cast(User, request.user)
+
+        try:
+            abstracts = Abstract.objects.filter(user=user)
+
+            abstracts = abstracts.order_by("-created_at")
+
+            paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
+            page = paginator.paginate_queryset(abstracts, request)
+
+            if page is not None:
+                serializer = AbstractSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer = AbstractSerializer(abstracts, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    def create(self, request: Request):
+        user = cast(User, request.user)
+        serializer = AbstractSubmissionSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+
+                sub_theme = SubTheme.get_sub_theme_by_id(
+                    sub_theme_id=serializer.validated_data.get("sub_theme")
+                )
+
+                conference = sub_theme.theme.conference
+
+                if conference.is_conference_outdated():
+                    return Response(
+                        {"detail": "Conference has already ended."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                if conference.is_abstract_submission_deadline_reached():
+                    return Response(
+                        {"detail": "Abstract submission deadline has passed."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                abstract = Abstract.objects.create(
+                    title=serializer.validated_data.get("title"),
+                    content=serializer.validated_data.get("content"),
+                    keywords=serializer.validated_data.get("keywords"),
+                    sub_theme=sub_theme,
+                    user=user,
+                    document=serializer.validated_data.get("document"),
+                    authors=serializer.validated_data.get("authors"),
+                )
+
+            return Response(
+                {
+                    "detail": "Your abstract has been successfully submitted. We will notify you after verification.",
+                    "id": str(abstract.abstract_id),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            logger.error(f"Error submitting abstract: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request: Request, pk=None):
+        serializer = AbstractDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+                
+        try:
+            with transaction.atomic():
+                abstract = Abstract.objects.select_for_update().get(pk=pk)
+                
+                if abstract.status != AbstractStatus.PENDING.value:
+                    return Response(data={"detail": "Only pending abstracts can be modified."}, status=status.HTTP_400_BAD_REQUEST)
+
+                abstract.status = AbstractStatus.REJECTED.value
+                abstract.comment = serializer.validated_data.get("comment")
+                abstract.save()
+
+            logger.info(f"Abstract {pk} rejected by {request.user}")
+
+            return Response(
+                {"detail": "Abstract rejected successfully"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Abstract.DoesNotExist:
+            return Response(
+                {"detail": "Abstract not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error rejecting abstract {pk}: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request: Request, pk=None):
+        try:
+            with transaction.atomic():
+                abstract = Abstract.objects.select_for_update().get(pk=pk)
+                
+                if abstract.status != AbstractStatus.PENDING.value:
+                    return Response(data={"detail": "Only pending abstracts can be modified."}, status=status.HTTP_400_BAD_REQUEST)
+
+                abstract.status = AbstractStatus.APPROVED.value
+                abstract.comment = None
+                abstract.save()
+
+            logger.info(f"Abstract {pk} approved by {request.user}")
+
+            return Response(
+                {"detail": "Abstract approved successfully"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Abstract.DoesNotExist:
+            return Response(
+                {"detail": "Abstract not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error approving abstract {pk}: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        
+    def retrieve(self, request: Request, pk=None):
+        try:
+            if pk is None:
+                return Response(data={"detail": "Please select abstract"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            abstract = Abstract.objects.get(pk=pk)
+
+            serializer = AbstractSerializer(abstract)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Abstract.DoesNotExist:
+            return Response(
+                {"detail": "Abstract not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving abstract: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=True, methods=["get"], url_path="download-document")
+    def download_document(self, request: Request, pk=None):
+        try:
+            abstract = Abstract.objects.get(pk=pk)
+
+            document_path = abstract.document.path
+
+            if not os.path.exists(document_path):
+                raise Http404("Document not found")
+
+            response = FileResponse(open(document_path, "rb"), as_attachment=True)
+
+            filename = os.path.basename(document_path)
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+            return response
+
+        except Abstract.DoesNotExist:
+            return Response(
+                {"detail": "Document not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error downloading document: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     def list(self, request: Request):
         serializer = AbstractQuerySerializer(data=request.query_params)
@@ -44,6 +279,7 @@ class AbstractViewSet(viewsets.ViewSet):
 
         validated_data = serializer.validated_data
         search = validated_data.get("search")
+        abstractStatus = validated_data.get("status")
 
         try:
             main_theme = MainTheme.objects.get(conference__conference_id=validated_data.get('conference_id'))
@@ -51,6 +287,7 @@ class AbstractViewSet(viewsets.ViewSet):
             abstracts = Abstract.get_conference_abstracts(
                 main_theme=main_theme,
                 search_query=search,
+                status=abstractStatus
             )
 
             paginator = PageNumberPagination()
@@ -81,9 +318,8 @@ class AbstractViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         
-
     @action(detail=False, methods=["get"], url_path="abstract-document/(?P<document_id>[^/]+)")
-    def read_document(self, request: HttpRequest, document_id):
+    def read_document(self, request: Request, document_id):
 
         try:
             abstract = Abstract.objects.get(abstract_id=document_id)
@@ -121,101 +357,3 @@ class AbstractViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # 👤 Get current user's abstract
-    @action(detail=False, methods=["post"])
-    def mine(self, request: HttpRequest):
-
-        user = cast(User, request.user)
-
-        try:
-            abstract = Abstract.retrieve_abstract(user=user)
-
-            if abstract is None:
-                return Response(
-                    {"detail": "You don't have any abstract for this conference"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            serializer = AbstractSerializer(abstract)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except Abstract.DoesNotExist:
-            return Response(
-                {"detail": "No abstract found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        except Abstract.MultipleObjectsReturned:
-            logger.error(f"User {user.user_id} has multiple abstracts.")
-            return Response(
-                {"detail": "Multiple abstracts found. Contact support."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        except Exception as e:
-            logger.error(f"Error retrieving abstract: {e}")
-            return Response(
-                {"detail": "Unexpected error occurred"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=False, methods=["post"])
-    def submit_abstract(self, request: HttpRequest):
-
-        user = cast(User, request.user)
-
-        serializer = AbstractSubmissionSerializer(
-            data=request.data,
-            context={"user": user},
-        )
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            with transaction.atomic():
-
-                sub_theme = SubTheme.get_sub_theme_by_id(
-                    sub_theme_id=serializer.validated_data.get("sub_theme")
-                )
-
-                conference = sub_theme.theme.conference
-
-                if conference.is_conference_outdated():
-                    return Response(
-                        {"detail": "Conference has already ended."},
-                        status=status.HTTP_403_FORBIDDEN,
-                    )
-
-                if conference.is_abstract_submission_deadline_reached():
-                    return Response(
-                        {"detail": "Abstract submission deadline has passed."},
-                        status=status.HTTP_403_FORBIDDEN,
-                    )
-
-                Abstract.create_abstract(
-                    title=serializer.validated_data.get("title"),
-                    content=serializer.validated_data.get("content"),
-                    keywords=serializer.validated_data.get("keywords"),
-                    sub_theme=sub_theme,
-                    user=user,
-                    document=serializer.validated_data.get("document"),
-                    authors=serializer.validated_data.get("authors"),
-                )
-
-            return Response(
-                {
-                    "detail": (
-                        "Your abstract has been successfully submitted. "
-                        "We will notify you after verification."
-                    )
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        except Exception as e:
-            logger.error(f"Error submitting abstract: {e}")
-            return Response(
-                {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )

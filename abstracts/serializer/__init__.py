@@ -5,3 +5,4 @@ from .qr_code_serializer import QRCodeVerificationSerializer
 from .paid_abstract_serializer import PaidAbstractSerializer
 from .request_retrieve_abstract import RequestRetrieveSerializer
 from .abstracts_query_serializer import AbstractQuerySerializer
+from .abstract_decision_serializer import AbstractDecisionSerializer

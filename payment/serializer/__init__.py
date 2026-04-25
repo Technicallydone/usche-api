@@ -6,3 +6,4 @@ from .request_payment_detail import RequestPaymentDetailSerializer
 from .conference_payment_report_erializr import ConferencePaymentReportSerializer
 from .stats_serializers import PaymentActivityStatsSerializer
 from .payment_query_serializer import PaymentQuerySerializer
+from .payment_decision_serializer import PaymentDecisionSerializer

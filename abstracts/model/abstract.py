@@ -166,10 +166,13 @@ class Abstract(models.Model):
         return cls.objects.filter(filters).first()
     
     @classmethod
-    def get_conference_abstracts(cls, main_theme: MainTheme, search_query: str = None):
+    def get_conference_abstracts(cls, main_theme: MainTheme, search_query: str = None, status: str = None):
         sub_themes = SubTheme.objects.filter(theme=main_theme)
 
         filters = Q(sub_theme__in=sub_themes)
+        
+        if status:
+            filters = Q(status=status)
 
         if search_query:
             search_query = search_query.lower()

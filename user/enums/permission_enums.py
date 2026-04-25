@@ -3,46 +3,46 @@ from enum import Enum
 
 class AppPermissionEnum(str, Enum):
     # Roles
-    CREATE_ROLES = "permission.create.roles"
-    READ_ROLES = "permission.view.roles"
-    UPDATE_ROLES = "permission.update.roles"
-    DELETE_ROLES = "permission.delete.roles"
-    ADD_PERMISSIONS = "permission.add.permissions"
-    REMOVE_PERMISSIONS = "permission.remove.permissions"
-    ASSIGN_USER_ROLE = "permission.assign.user.role"
-    REMOVE_USER_ROLE = "permission.remove.user.role"
-    CHANGE_USER_ROLE = "permission.change.user.role"
+    CREATE_ROLES = 'permission.create.roles'
+    READ_ROLES = 'permission.view.roles'
+    UPDATE_ROLES = 'permission.update.roles'
+    DELETE_ROLES = 'permission.delete.roles'
+    ADD_PERMISSIONS = 'permission.add.permissions'
+    REMOVE_PERMISSIONS = 'permission.remove.permissions'
+    ASSIGN_USER_ROLE = 'permission.assign.user.role'
+    REMOVE_USER_ROLE = 'permission.remove.user.role'
+    CHANGE_USER_ROLE = 'permission.change.user.role'
 
     # Permissions
-    CREATE_PERMISSIONS = "permission.create.permissions"
-    READ_PERMISSIONS = "permission.view.permissions"
-    UPDATE_PERMISSIONS = "permission.update.permissions"
-    DELETE_PERMISSIONS = "permission.delete.permissions"
+    CREATE_PERMISSIONS = 'permission.create.permissions'
+    READ_PERMISSIONS = 'permission.view.permissions'
+    UPDATE_PERMISSIONS = 'permission.update.permissions'
+    DELETE_PERMISSIONS = 'permission.delete.permissions'
 
     # Users
-    READ_USERS = "permission.view.users"
-    CREATE_USERS = "permission.create.users"
-    UPDATE_USERS = "permission.update.users"
-    DELETE_USERS = "permission.delete.users"
-    READ_USERS_REPORT = "permission.view.users.report"
-    UPDATE_STAFF_STATUS = "permission.update.staff.status"
-    MANAGE_STAFF_MEMBERSHIP = "permission.manage.staff.membership"
+    READ_USERS = 'permission.view.users'
+    CREATE_USERS = 'permission.create.users'
+    UPDATE_USERS = 'permission.update.users'
+    DELETE_USERS = 'permission.delete.users'
+    READ_USERS_REPORT = 'permission.view.users.report'
+    UPDATE_STAFF_STATUS = 'permission.update.staff.status'
+    MANAGE_STAFF_MEMBERSHIP = 'permission.manage.staff.membership'
 
     # Profile & Password
-    READ_PROFILE = "permission.view.profile"
-    CHANGE_PASSWORD = "permission.change.password"
+    READ_PROFILE = 'permission.view.profile'
+    CHANGE_PASSWORD = 'permission.change.password'
     
     # Statistics
-    READ_CONFERENCE_STATS = "permission.view.conference.stats"
+    READ_CONFERENCE_STATS = 'permission.view.conference.stats'
     
-    SIGN_OUT = "permission.sign.out"
+    SIGN_OUT = 'permission.sign.out'
     
     # Conference Management
-    MANAGE_CONFERENCE = "permission.manage.conference"
-    READ_CONFERENCE = "permission.view.conference"
-    UPDATE_CONFERENCE = "permission.update.conference"
-    DELETE_CONFERENCE = "permission.delete.conference"
-    CREATE_CONFERENCE = "permission.create.conference"
+    MANAGE_CONFERENCE = 'permission.manage.conference'
+    READ_CONFERENCE = 'permission.view.conference'
+    UPDATE_CONFERENCE = 'permission.update.conference'
+    DELETE_CONFERENCE = 'permission.delete.conference'
+    CREATE_CONFERENCE = 'permission.create.conference'
         
     # Theme Management
     CREATE_MAIN_THEME = 'permission.create.main-theme'
@@ -66,25 +66,30 @@ class AppPermissionEnum(str, Enum):
     DELETE_SPONSOR = 'permission.delete.sponsor'
     
     # Conference Abstracts
-    CREATE_ABSTRACT = "permission.create.abstract"
-    READ_ABSTRACT_ALL = "permission.view.abstract.all"
-    READ_ABSTRACT_OWN = "permission.view.abstract.own"
-    UPDATE_ABSTRACT = "permission.update.abstract"
-    DELETE_ABSTRACT = "permission.delete.abstract"
+    CREATE_ABSTRACT = 'permission.create.abstract'
+    READ_ABSTRACT_ALL = 'permission.view.abstract.all'
+    READ_ABSTRACT = 'permission.view.abstract'
+    READ_ABSTRACT_OWN = 'permission.view.abstract.own'
+    UPDATE_ABSTRACT = 'permission.update.abstract'
+    DELETE_ABSTRACT = 'permission.delete.abstract'
+    DOWNLOAD_ABSTRACT_DOCUMENT = 'permission.abstract.download'
+    APPROVE_ABSTRACT = 'permission.abstract.approve'
+    REJECT_ABSTRACT = 'permission.abstract.reject'
 
     # Payments
-    CREATE_PAYMENTS = "permission.create.payments"
-    READ_PAYMENTS = "permission.view.payments"
-    READ_OWN_PAYMENTS = "permission.view.own.payments"
-    UPDATE_PAYMENTS = "permission.update.payments"
-    DELETE_PAYMENTS = "permission.delete.payments"
-    APPROVE_PAYMENTS = "permission.approve.payments"
-    REJECT_PAYMENTS = "permission.reject.payments"
-    VERIFY_PAYMENTS = "permission.verify.payments"
+    CREATE_PAYMENTS = 'permission.create.payments'
+    READ_PAYMENTS = 'permission.view.payments'
+    READ_OWN_PAYMENTS = 'permission.view.own.payments'
+    UPDATE_PAYMENTS = 'permission.update.payments'
+    DELETE_PAYMENTS = 'permission.delete.payments'
+    APPROVE_PAYMENTS = 'permission.approve.payments'
+    REJECT_PAYMENTS = 'permission.reject.payments'
+    VERIFY_PAYMENTS = 'permission.verify.payments'
+    DOWNLOAD_PAYMENT_SLIP = 'permission.payments.slip.download'
 
     @staticmethod
     def seed_permissions():
-        """Create missing permissions automatically in DB."""
+        '''Create missing permissions automatically in DB.'''
         from django.db import transaction
         from user.model.app_permission_model import AppPermission
 

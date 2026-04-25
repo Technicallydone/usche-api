@@ -3,12 +3,13 @@ from decimal import Decimal, InvalidOperation
 import logging
 import os
 from typing import cast
-from django.http import Http404, HttpRequest
+from django.http import FileResponse, Http404, HttpRequest
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from abstracts.models import Abstract
+from attendee.enums.attendee_status import AttendeeStatus
 from attendee.models import Attendee
 from conference.models import Conference
 from payment.enums.payment_status import PaymentStatus
@@ -19,7 +20,8 @@ from payment.serializers import (
     UploadPaymentSlipSerializer,
     RequestPaymentDetailSerializer,
     PaymentSerializer,
-    PaymentQuerySerializer
+    PaymentQuerySerializer,
+    PaymentDecisionSerializer
 )
 from payment.tasks import process_payment_approval
 from services.email.tasks import send_email_task
@@ -48,7 +50,102 @@ class PaymentViewSet(viewsets.ViewSet):
         "read_payment_slip": AppPermissionEnum.READ_PAYMENTS.value,
         "complete_payment": AppPermissionEnum.APPROVE_PAYMENTS.value,
         "reject_payment": AppPermissionEnum.REJECT_PAYMENTS.value,
+        'download_payment_slip': AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP.value,
+        'reject': AppPermissionEnum.REJECT_PAYMENTS.value,
+        'approve': AppPermissionEnum.APPROVE_PAYMENTS.value
     }
+    
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request: Request, pk=None):
+        serializer = PaymentDecisionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(pk=pk)
+
+                if payment.status != PaymentStatus.PENDING.value:
+                    return Response(
+                        {"detail": "Only pending payments can be modified."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                payment.status = PaymentStatus.REJECTED.value
+                payment.comment = serializer.validated_data.get('comment')
+                payment.rejected_by = request.user
+                payment.save()
+
+            logger.info(f"Payment {pk} rejected by {request.user}")
+
+            return Response(
+                {"detail": "Payment rejected successfully"},
+                status=status.HTTP_200_OK,
+            )
+
+        except Payment.DoesNotExist:
+            return Response(
+                {"detail": "Payment not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error rejecting payment {pk}: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request: Request, pk=None):
+        try:
+            with transaction.atomic():
+                payment = Payment.objects.select_for_update().get(pk=pk)
+
+                if payment.status != PaymentStatus.PENDING.value:
+                    return Response(
+                        {"detail": "Only pending payments can be modified."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                attendee, created = Attendee.objects.get_or_create(
+                    conference=payment.conference,
+                    participant=payment.user,
+                    defaults={
+                        "status": AttendeeStatus.ACTIVE.value,
+                        "invitation_sent": False,
+                    }
+                )
+
+                if not created:
+                    attendee.status = AttendeeStatus.ACTIVE.value
+                    attendee.save()
+
+                payment.status = PaymentStatus.COMPLETED.value
+                payment.comment = ""
+                payment.rejected_by = None
+                payment.save()
+
+            logger.info(f"Payment {pk} approved by {request.user}")
+
+            return Response(
+                {
+                    "detail": "Payment approved successfully and attendee activated"
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Payment.DoesNotExist:
+            return Response(
+                {"detail": "Payment not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.error(f"Error approving payment {pk}: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     def list(self, request: Request):
         serializer = PaymentQuerySerializer(data=request.query_params)
@@ -211,39 +308,49 @@ class PaymentViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='payment-slip/(?P<payment_slip_id>[^/]+)')
-    def read_payment_slip(self, request: HttpRequest, payment_slip_id):
-        """Retrieve a payment slip document as a base64 encoded string."""
-        user = cast(User, request.user)
-
+    @action(detail=True, methods=["get"], url_path="download-slip")
+    def download_payment_slip(self, request: Request, pk=None):
         try:
-            payment = Payment.objects.get(payment_id=payment_slip_id)
+            print(pk)
+            payment = Payment.objects.get(pk=pk)
+            
+            print(payment)
 
-            document_filename = payment.payment_slip.name
-            document_path = os.path.join(settings.MEDIA_ROOT, document_filename)
+            if not payment.payment_slip:
+                return Response(
+                    {"detail": "No payment slip uploaded"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+                
+            print(payment)
 
-            if not os.path.exists(document_path):
-                raise Http404("Payment slip document not found")
+            file_path = payment.payment_slip.path
+            
+            print(file_path)
 
-            with open(document_path, 'rb') as doc_file:
-                file_content = doc_file.read()
+            if not os.path.exists(file_path):
+                raise Http404("Payment slip not found")
 
-            file_content_base64 = base64.b64encode(file_content).decode('utf-8')
+            response = FileResponse(open(file_path, "rb"), as_attachment=True)
 
-            return Response(
-                data={
-                    "detail": "Payment slip document retrieved successfully",
-                    "file_content": file_content_base64  
-                },
-                status=status.HTTP_200_OK
-            )
+            filename = os.path.basename(file_path)
+            response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+            return response
 
         except Payment.DoesNotExist:
-            logger.error(f"Payment slip document with ID {payment_slip_id} not found.")
-            return Response(data={"detail": "Payment slip document not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": "Payment not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         except Exception as e:
-            logger.error(f"Error while retrieving payment slip document: {e}")
-            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"hereeeee: {str(e)}")
+            logger.error(f"Error downloading payment slip: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=['post'], url_path='complete-payment')
     def complete_payment(self, request: HttpRequest):

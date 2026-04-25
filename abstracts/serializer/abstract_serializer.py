@@ -25,4 +25,4 @@ class AbstractSerializer(serializers.Serializer):
     user = UserResponseSerializer()
 
     def get_document(self, obj: Abstract):
-        return f"{settings.ABSTRACT_DOCUMENT_URL}/{obj.abstract_id}/"
+        return f"{settings.ABSTRACT_DOCUMENT_URL}/{obj.abstract_id}/download-document"
