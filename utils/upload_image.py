@@ -19,3 +19,9 @@ def upload_sponsor_logo_to(instance, filename):
     extension = filename.split('.')[-1]
     
     return os.path.join('sponsor_logo', str(sponsor_id) + '.' + extension)
+
+def upload_slider_to(instance, filename):
+    id = instance.id
+    extension = filename.split('.')[-1]
+    
+    return os.path.join('sliders', str(id) + '.' + extension)

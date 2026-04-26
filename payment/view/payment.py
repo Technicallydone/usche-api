@@ -311,23 +311,16 @@ class PaymentViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["get"], url_path="download-slip")
     def download_payment_slip(self, request: Request, pk=None):
         try:
-            print(pk)
             payment = Payment.objects.get(pk=pk)
             
-            print(payment)
-
             if not payment.payment_slip:
                 return Response(
                     {"detail": "No payment slip uploaded"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
                 
-            print(payment)
-
             file_path = payment.payment_slip.path
             
-            print(file_path)
-
             if not os.path.exists(file_path):
                 raise Http404("Payment slip not found")
 
@@ -345,7 +338,6 @@ class PaymentViewSet(viewsets.ViewSet):
             )
 
         except Exception as e:
-            print(f"hereeeee: {str(e)}")
             logger.error(f"Error downloading payment slip: {e}")
             return Response(
                 {"detail": str(e)},

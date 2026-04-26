@@ -26,6 +26,7 @@ from user.models import User
 from user.enums.permission_enums import AppPermissionEnum
 from user.permissions import HasAppPermission
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -101,16 +102,31 @@ class AbstractViewSet(viewsets.ViewSet):
     def create(self, request: Request):
         user = cast(User, request.user)
         serializer = AbstractSubmissionSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        
+        print(serializer)
 
         try:
             with transaction.atomic():
 
-                sub_theme = SubTheme.get_sub_theme_by_id(
-                    sub_theme_id=serializer.validated_data.get("sub_theme")
-                )
+                sub_theme_id = serializer.validated_data.get("sub_theme")
+
+                sub_theme = SubTheme.get_sub_theme_by_id(sub_theme_id=sub_theme_id)
+                
+                print(sub_theme.sub_theme_id)
+                print(sub_theme.title)
+
+                if not sub_theme:
+                    return Response(
+                        {"detail": "Invalid sub-theme selected."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                if not sub_theme.theme:
+                    return Response(
+                        {"detail": "Sub-theme is not linked to a valid theme."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 conference = sub_theme.theme.conference
 
@@ -144,10 +160,16 @@ class AbstractViewSet(viewsets.ViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
-        except Exception as e:
-            logger.error(f"Error submitting abstract: {e}")
+        except ValidationError as e:
             return Response(
                 {"detail": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except Exception as e:
+            logger.exception("Unexpected error submitting abstract")
+            return Response(
+                {"detail": "Internal server error. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     

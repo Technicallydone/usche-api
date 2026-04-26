@@ -3,6 +3,7 @@ import os
 from django.http import FileResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
+from abstracts.enums.abstract_status import AbstractStatus
 from abstracts.models import Abstract
 from attendee.models import Attendee
 from conference.models import BankAccount
@@ -11,12 +12,14 @@ from conference.models import (
     TargetGroup,
     RegistrationFee,
     ScheduleDay,
-    Conference
+    Conference,
+    ConferenceSlider,
+    PreConferenceSlider
 )
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import action
 from conference.serializers import (
-    ConferenceSerailizer,
+    ConferenceSerializer,
     ConferenceDetailSerializer,
     CreateConferenceSerializer,
     CreateVenueSerializer,
@@ -32,7 +35,8 @@ from conference.serializers import (
     UpdateBankAccountSerializer,
     UpdateScheduleDaySerializer,
     UpdateConferenceScheduleSerializer,
-    SVGUploadSerializer
+    SVGUploadSerializer,
+    SliderBulkUploadSerializer
 )
 from payment.model.payment import Payment
 from speakers.models import Speaker
@@ -43,7 +47,11 @@ from user.model.user_model import User
 from user.permissions import HasAppPermission
 from rest_framework.request import Request
 from rest_framework.exceptions import ValidationError
+from datetime import timedelta
 import logging
+from django.utils import timezone
+from django.utils import timezone
+from django.db.models import Count, Sum
 
 logger = logging.getLogger(__name__)
 
@@ -66,108 +74,283 @@ class ConferenceViewSet(viewsets.ViewSet):
         'update_id_badge_background': AppPermissionEnum.UPDATE_CONFERENCE.value,
         'update_certificate_background': AppPermissionEnum.UPDATE_CONFERENCE.value,
         'update': AppPermissionEnum.UPDATE_CONFERENCE.value,
-        'update_venue': AppPermissionEnum.UPDATE_CONFERENCE.value
+        'update_venue': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'upload_conference_sliders': AppPermissionEnum.CREATE_CONFERENCE.value,
+        'toggle_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value,
+        'toggle_pre_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value
     }
     
-    @action(detail=True, methods=['get'], url_path='stats')
-    def stats(self, request, pk=None):
-        if not pk:
-            return Response(
-                {"detail": "Conference ID is mandatory"},
-                status=status.HTTP_406_NOT_ACCEPTABLE
-            )
-        
+    @action(detail=True, methods=["patch"], url_path="conference-sliders/toggle")
+    def toggle_conference_slider(self, request, pk=None):
         try:
-            # Get conference
-            conference = Conference.get_conference_by_id(conference_id=pk)
+            slider = ConferenceSlider.objects.filter(pk=pk).first()
+
+            if not slider:
+                return Response({"detail": "Slider not found"}, status=404)
+
+            new_state = slider.toggle_active()
+
+            return Response({
+                "id": str(slider.id),
+                "is_active": new_state
+            })
+
+        except Exception as e:
+            logger.error(f"Error toggling conference slider: {e}", exc_info=True)
+            return Response(
+                {"detail": "Failed to toggle slider"},
+                status=500
+            )
+            
+    @action(detail=True, methods=["patch"], url_path="pre-conference-sliders/toggle")
+    def toggle_pre_conference_slider(self, request, pk=None):
+        try:
+            slider = PreConferenceSlider.objects.filter(pk=pk).first()
+
+            if not slider:
+                return Response({"detail": "Slider not found"}, status=404)
+
+            new_state = slider.toggle_active()
+
+            return Response({
+                "id": str(slider.id),
+                "is_active": new_state
+            })
+
+        except Exception as e:
+            logger.error(f"Error toggling pre-conference slider: {e}", exc_info=True)
+            return Response(
+                {"detail": "Failed to toggle slider"},
+                status=500
+            )
+    
+    @action(detail=False, methods=["post"], url_path="pre-conference-sliders")
+    def upload_pre_conference_sliders(self, request):
+        try:
+            serializer = SliderBulkUploadSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            conference_id = serializer.validated_data["conference_id"]
+            images = serializer.validated_data["images"]
+
+            conference = Conference.objects.filter(
+                conference_id=conference_id
+            ).first()
+
             if not conference:
                 return Response(
-                    {"detail": "No conference found"},
+                    {"detail": "Conference not found"},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            # -----------------------------
-            # User statistics
-            # -----------------------------
-            attendance_stats = User.attendance_stats()
-            registration_per_year_stats = User.registration_per_year_stats()
-            recent_registration_stats = User.recent_registration_stats(days=7, limit=10)
+            for img in images:
+                PreConferenceSlider.objects.create(
+                    conference=conference,
+                    image=img
+                )
 
-            # -----------------------------
-            # Payment statistics
-            # -----------------------------
-            total_payments, total_join_requests, total_pending_join_requests, total_abstract_payments = Payment.conference_payment_stats(conference=conference)
-            payment_activity_stats = Payment.payment_activity_stats()
+            return Response(
+                {"detail": "Pre conference sliders created successfully"},
+                status=status.HTTP_201_CREATED
+            )
 
-            # -----------------------------
-            # Conference theme & targets
-            # -----------------------------
-            theme = MainTheme.get_theme_by_conference(conference)
-            if not theme:
+        except Exception as e:
+            logger.error(f"Error uploading pre-conference sliders: {e}", exc_info=True)
+            return Response(
+                {"detail": "Failed to upload pre-conference sliders"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=["post"], url_path="conference-sliders")
+    def upload_conference_sliders(self, request: Request):
+        try:
+            serializer = SliderBulkUploadSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            conference_id = serializer.validated_data.get('conference_id')
+            images = serializer.validated_data.get('images')
+
+            conference = Conference.objects.filter(
+                conference_id=conference_id
+            ).first()
+
+            if not conference:
                 return Response(
-                    {"detail": f"No main theme found for {conference.conference_name}"},
+                    {"detail": "Conference not found"},
                     status=status.HTTP_404_NOT_FOUND
                 )
 
-            total_sub_theme = SubTheme.get_total_theme_subthemes(theme=theme)
-            total_conference_target_groups = TargetGroup.total_conference_target_groups(conference=conference)
+            for img in images:
+                ConferenceSlider.objects.create(
+                    conference=conference,
+                    image=img
+                )
 
-            # -----------------------------
-            # Attendee statistics
-            # -----------------------------
-            total_users = User.total_users()
-            total_attendees = Attendee.total_conference_attendees(conference=conference)
+            return Response(data={"detail": "Conference sliders created successfully"}, status=status.HTTP_201_CREATED)
 
-            # -----------------------------
-            # Abstract statistics
-            # -----------------------------
-            total_abstracts, total_paid_abstracts, total_unpaid_abstracts, total_approved_abstracts = Abstract.abstract_stats(main_theme=theme)
+        except Exception as e:
+            logger.error(f"Error uploading conference sliders: {e}", exc_info=True)
+            return Response(
+                {"detail": "Failed to upload conference sliders"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    @action(detail=False, methods=['get'], url_path='open-for-submission')
+    def open_for_submission(self, request: Request):
+        try:
+            now = timezone.now()
 
-            # -----------------------------
-            # Build stats dictionary
-            # -----------------------------
-            stats = {
-                "conference": {
-                    "conference_name": conference.conference_name,
-                    "start_date": conference.start_date,
-                    "end_date": conference.end_date,
-                    "capacity": conference.capacity,
-                    "venue": conference.venue_name,
-                    "total_sub_themes": total_sub_theme,
-                    "total_target_groups": total_conference_target_groups,
-                },
-                "attendees": {
+            conferences = Conference.objects.filter(
+                registration_open=True,
+                abstract_submission_deadline__gt=now
+            ).order_by("-listing_date")
+
+            serializer = ConferenceDetailSerializer(conferences, many=True)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Error fetching open conferences: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request):
+        try:
+            now = timezone.now()
+            last_7_days = now - timedelta(days=7)
+
+            # -----------------------------------
+            # CONFERENCE STATS
+            # -----------------------------------
+            total_conferences = Conference.objects.count()
+
+            active_conferences = Conference.objects.filter(
+                end_date__gte=now.date()
+            ).count()
+
+            # -----------------------------------
+            # USER & ATTENDEE STATS
+            # -----------------------------------
+            total_users = User.objects.count()
+            total_attendees = Attendee.objects.count()
+
+            recent_users = User.objects.filter(
+                created_at__gte=last_7_days
+            ).order_by('-created_at')[:10]
+
+            # registrations per year
+            registrations_per_year = (
+                User.objects
+                .values('created_at__year')
+                .annotate(count=Count('user_id'))
+                .order_by('created_at__year')
+            )
+
+            # -----------------------------------
+            # ABSTRACT STATS
+            # -----------------------------------
+            total_abstracts = Abstract.objects.count()
+
+            total_paid_abstracts = Abstract.objects.filter(
+                is_payment_done=True
+            ).count()
+
+            total_unpaid_abstracts = Abstract.objects.filter(
+                is_payment_done=False
+            ).count()
+
+            total_approved_abstracts = Abstract.objects.filter(
+                status=AbstractStatus.APPROVED.value
+            ).count()
+
+            # -----------------------------------
+            # PAYMENT STATS
+            # -----------------------------------
+            payment_aggregate = Payment.objects.aggregate(
+                total_amount=Sum('amount'),
+                total_transactions=Count('payment_id')
+            )
+
+            recent_payments = Payment.objects.filter(
+                timestamp__gte=last_7_days
+            ).count()
+
+            # -----------------------------------
+            # THEMES & TARGET GROUPS
+            # -----------------------------------
+            total_main_themes = MainTheme.objects.count()
+            total_sub_themes = SubTheme.objects.count()
+            total_target_groups = TargetGroup.objects.count()
+
+            # -----------------------------------
+            # TOP CONFERENCES (by attendees)
+            # -----------------------------------
+            top_conferences = (
+                Attendee.objects
+                .values(
+                    'conference__conference_id',
+                    'conference__conference_name'
+                )
+                .annotate(total_attendees=Count('attendee_id'))
+                .order_by('-total_attendees')[:5]
+            )
+
+            # -----------------------------------
+            # RESPONSE STRUCTURE
+            # -----------------------------------
+            data = {
+                "overview": {
+                    "total_conferences": total_conferences,
+                    "active_conferences": active_conferences,
                     "total_users": total_users,
                     "total_attendees": total_attendees,
-                    "attendance_stats": attendance_stats,
-                    "registration_per_year_stats": list(registration_per_year_stats),
-                    "recent_registration_stats": [
+                },
+
+                "abstracts": {
+                    "total": total_abstracts,
+                    "paid": total_paid_abstracts,
+                    "unpaid": total_unpaid_abstracts,
+                    "approved": total_approved_abstracts,
+                },
+
+                "payments": {
+                    "total_amount": payment_aggregate.get("total_amount") or 0,
+                    "total_transactions": payment_aggregate.get("total_transactions") or 0,
+                    "last_7_days": recent_payments,
+                },
+
+                "themes": {
+                    "total_main_themes": total_main_themes,
+                    "total_sub_themes": total_sub_themes,
+                    "total_target_groups": total_target_groups,
+                },
+
+                "trends": {
+                    "registrations_per_year": list(registrations_per_year),
+                    "recent_users": [
                         {
                             "id": u.user_id,
-                            "full_name": u.full_name,
+                            "full_name": f"{u.first_name} {u.last_name}",
                             "email": u.email,
-                            "created_at": u.created_at
-                        } for u in recent_registration_stats
+                            "created_at": u.created_at,
+                        }
+                        for u in recent_users
                     ],
                 },
-                "abstracts": {
-                    "total_abstracts": total_abstracts,
-                    "total_paid_abstracts": total_paid_abstracts,
-                    "total_unpaid_abstracts": total_unpaid_abstracts,
-                    "total_approved_abstracts": total_approved_abstracts,
-                },
-                "payments": {
-                    "total_payments": total_payments,
-                    "total_join_requests": total_join_requests,
-                    "total_pending_join_requests": total_pending_join_requests,
-                    "total_abstract_payments": total_abstract_payments,
-                    "payment_activity_stats": payment_activity_stats,
-                }
-            }
 
-            serializer = ConferenceStatsSerializer(data=stats)
+                "top_conferences": list(top_conferences),
+            }
+            
+            serializer = ConferenceStatsSerializer(data=data)
             serializer.is_valid(raise_exception=True)
-            return Response({"stats": serializer.data}, status=status.HTTP_200_OK)
+
+            return Response(
+                {"stats": serializer.data},
+                status=status.HTTP_200_OK
+            )
 
         except Exception as e:
             logger.error(f"Unexpected error occurred: {e}", exc_info=True)
@@ -638,10 +821,10 @@ class ConferenceViewSet(viewsets.ViewSet):
             page = paginator.paginate_queryset(conferences, request)
 
             if page is not None:
-                serializer = ConferenceSerailizer(page, many=True)
+                serializer = ConferenceSerializer(page, many=True)
                 return paginator.get_paginated_response(serializer.data)
 
-            serializer = ConferenceSerailizer(conferences, many=True)
+            serializer = ConferenceSerializer(conferences, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:

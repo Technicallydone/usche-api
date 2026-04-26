@@ -6,3 +6,5 @@ from .bank_account import BankAccount
 from .conference_schedule import ConferenceSchedule
 from .schedule_day import ScheduleDay
 from .conference_schedule_document import ConferenceScheduleDocument
+from .conference_slider import ConferenceSlider
+from .pre_conference_slider import PreConferenceSlider

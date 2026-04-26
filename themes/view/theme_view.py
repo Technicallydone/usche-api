@@ -75,7 +75,6 @@ class ThemeViewSet(viewsets.ViewSet):
     
     def update(self, request: Request, pk=None):
         serializer = UpdateMainThemeSerializer(data=request.data)
-        print(serializer)
         serializer.is_valid(raise_exception=True)
 
         validated_data = serializer.validated_data

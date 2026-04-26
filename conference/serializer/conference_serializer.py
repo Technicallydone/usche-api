@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from conference.models import Conference
 
-class ConferenceSerailizer(serializers.Serializer):
+class ConferenceSerializer(serializers.Serializer):
     conference_id = serializers.UUIDField()
     conference_name = serializers.CharField()
     description = serializers.CharField()
