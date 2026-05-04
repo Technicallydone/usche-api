@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.api_endpoints import APIEndpoints
 from sponsors.models import Sponsor
 from usche_app import settings
 
@@ -10,5 +11,5 @@ class SponsorSerializer(serializers.Serializer):
     contact_email = serializers.EmailField(allow_blank=True, required=False)
     priority = serializers.IntegerField()
 
-    def get_logo(self, obj):
-        return f"{settings.SPONSOR_LOGO_BASE_URL}/{obj.sponsor_id}/"
+    def get_logo(self, obj: Sponsor):
+        return f"{APIEndpoints.SPEAKER_IMAGE}/{obj.sponsor_id}/"

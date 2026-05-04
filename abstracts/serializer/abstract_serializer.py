@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from abstracts.models import Abstract
+from config.api_endpoints import APIEndpoints
 from usche_app import settings
 from user.serializers import UserResponseSerializer
 
@@ -25,4 +26,4 @@ class AbstractSerializer(serializers.Serializer):
     user = UserResponseSerializer()
 
     def get_document(self, obj: Abstract):
-        return f"{settings.ABSTRACT_DOCUMENT_URL}/{obj.abstract_id}/download-document"
+        return f"{APIEndpoints.ABSTRACT_DOCUMENT}/{obj.abstract_id}/download-document"

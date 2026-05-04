@@ -56,7 +56,7 @@ from django.db.models import Count, Sum
 logger = logging.getLogger(__name__)
 
 class ConferenceViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated, HasAppPermission]
+    permission_classes = [permissions.AllowAny, HasAppPermission]
     
     permission_mapping = {
         'list': AppPermissionEnum.READ_CONFERENCE.value,
@@ -79,6 +79,70 @@ class ConferenceViewSet(viewsets.ViewSet):
         'toggle_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value,
         'toggle_pre_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value
     }
+    
+    @action(detail=False, methods=['get'], url_path='sliders/(?P<slider_id>[^/.]+)')
+    def retrieve_conference_slider(self, request: Request, slider_id=None):
+        try:
+            slider = ConferenceSlider.objects.get(id=slider_id)
+
+            if not slider.image:
+                return Response(
+                    {"detail": "No image found for this slider"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            file_path = slider.image.path
+
+            if not os.path.exists(file_path):
+                return Response(
+                    {"detail": "Slider image not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            content_type, _ = mimetypes.guess_type(file_path)
+
+            return FileResponse(
+                open(file_path, "rb"),
+                content_type=content_type or "application/octet-stream"
+            )
+
+        except ConferenceSlider.DoesNotExist:
+            return Response(
+                {"detail": "Slider not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    
+    @action(detail=False, methods=['get'], url_path='pre-sliders/(?P<slider_id>[^/.]+)')
+    def retrieve_pre_conference_slider(self, request: Request, slider_id=None):
+        try:
+            slider = PreConferenceSlider.objects.get(id=slider_id)
+
+            if not slider.image:
+                return Response(
+                    {"detail": "No image found for this slider"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            file_path = slider.image.path
+
+            if not os.path.exists(file_path):
+                return Response(
+                    {"detail": "Slider image not found"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            content_type, _ = mimetypes.guess_type(file_path)
+
+            return FileResponse(
+                open(file_path, "rb"),
+                content_type=content_type or "application/octet-stream"
+            )
+
+        except PreConferenceSlider.DoesNotExist:
+            return Response(
+                {"detail": "Slider not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
     
     @action(detail=True, methods=["patch"], url_path="conference-sliders/toggle")
     def toggle_conference_slider(self, request, pk=None):
@@ -125,7 +189,7 @@ class ConferenceViewSet(viewsets.ViewSet):
             )
     
     @action(detail=False, methods=["post"], url_path="pre-conference-sliders")
-    def upload_pre_conference_sliders(self, request):
+    def upload_pre_conference_sliders(self, request: Request):
         try:
             serializer = SliderBulkUploadSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
@@ -837,7 +901,24 @@ class ConferenceViewSet(viewsets.ViewSet):
         using the standard DRF retrieve method.
         """
         try:
-            conference = Conference.objects.filter(conference_id=pk).first()
+            conference = (
+            Conference.objects
+                .filter(conference_id=pk)
+                .select_related("theme")
+                .prefetch_related(
+                    "pre_conference_sliders",
+                    "slider_images",
+                    "sponsors",
+                    "speakers",
+                    "attendees",
+                    "registration_fees",
+                    "schedule_days",
+                    "bank_accounts",
+                    "groups",
+                )
+                .first()
+            )
+            
             if not conference:
                 return Response({"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
 

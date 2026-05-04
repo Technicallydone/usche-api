@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from config.api_endpoints import APIEndpoints
 from speakers.models import Speaker
 from usche_app import settings
 
@@ -13,5 +14,5 @@ class SpeakerSerializer(serializers.Serializer):
     biography = serializers.CharField()
     speaker_image = serializers.SerializerMethodField()
 
-    def get_speaker_image(self, obj):
-        return f"{settings.SPEAKER_BASE_URL}/{obj.speaker_id}/"
+    def get_speaker_image(self, obj: Speaker):
+        return f"{APIEndpoints.SPEAKER_IMAGE}/{obj.speaker_id}/"

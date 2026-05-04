@@ -1,10 +1,14 @@
 from rest_framework import serializers
 
 from attendee.serializer.attendee_serializer import AttendeeSerializer
+from conference.model.conference import Conference
 from conference.serializer.bank_account_serializer import BankAccountSerializer
+from conference.serializer.conference_slider import ConferenceSliderResponseSerializer
 from conference.serializer.group_serializer import TargetGroupSerializer
+from conference.serializer.pre_conference_slider import PreConferenceSliderResponseSerializer
 from conference.serializer.resgistration_fee_serializer import RegistrationFeeSerializer
 from conference.serializer.schedule_day_serializer import ScheduleDaySerializer
+from config.api_endpoints import APIEndpoints
 from speakers.serializer.speaker_serializer import SpeakerSerializer
 from sponsors.serializer.sponsor_serializer import SponsorSerializer
 from themes.serializer.themes_serializer import ThemeSerializer
@@ -13,6 +17,10 @@ from usche_app import settings
 
 class ConferenceDetailSerializer(serializers.Serializer):
     conference_id = serializers.CharField()
+    
+    pre_conference_sliders = serializers.SerializerMethodField()
+    conference_sliders = serializers.SerializerMethodField()
+
     conference_name = serializers.CharField()
     description = serializers.CharField(allow_blank=True, required=False)
 
@@ -47,7 +55,21 @@ class ConferenceDetailSerializer(serializers.Serializer):
     bank_accounts = BankAccountSerializer(many=True)
     groups = TargetGroupSerializer(many=True)
     
-    def get_certificate_background(self, obj):
+    def get_conference_sliders(self, obj):
+        sliders = obj.slider_images.filter(is_active=True)
+        return [
+            f"{APIEndpoints.CONFERENCE_SLIDERS}/{slider.id}/"
+            for slider in sliders
+        ]
+
+    def get_pre_conference_sliders(self, obj):
+        sliders = obj.pre_conference_sliders.filter(is_active=True)
+        return [
+            f"{APIEndpoints.PRE_CONFERENCE_SLIDERS}/{slider.id}/"
+            for slider in sliders
+        ]
+    
+    def get_certificate_background(self, obj: Conference):
         if not obj.certificate_background:
             return None
-        return f"{settings.CERTIFICATE_BACKGROUND_BASE_URL}/{obj.conference_id}/certificate-template"
+        return f"{APIEndpoints.CERTIFICATE_BACKGROUND}/{obj.conference_id}/certificate-template"

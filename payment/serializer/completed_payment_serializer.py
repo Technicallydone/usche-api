@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from config.api_endpoints import APIEndpoints
 from payment.models import Payment
 from usche_app import settings
 from user.serializers import UserResponseSerializer
@@ -16,7 +17,7 @@ class CompletedPaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = '__all__'
         
-    def get_payment_slip(self, obj):
+    def get_payment_slip(self, obj: Payment):
         payment_id = obj.payment_id
         
-        return f"{settings.PAYMENT_SLIP_URL}/{payment_id}/"
+        return f"{APIEndpoints.PAYMENT_SLIP}/{payment_id}/"
