@@ -264,7 +264,7 @@ class AbstractViewSet(viewsets.ViewSet):
 
                     
                     if sub_theme.theme.conference.is_abstract_submission_deadline_reached():
-                        return Response(data={"detail": "We regret to inform you that the deadline for submitting abstracts has passed."}, status=status.HTTP_403_FORBIDDEN)
+                        return Response(data={"detail": "We regret to inform you that the deadline for submitting abstracts has passed."}, status=status.HTTP_400_BAD_REQUEST)
                     
                     Abstract.create_abstract(
                         title=serializer.validated_data.get("title"),
