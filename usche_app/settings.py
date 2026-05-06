@@ -73,12 +73,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://conference.usche.ac.tz",
-    "https://conference.usche.ac.tz:8443",
-    "https://www.conference.usche.ac.tz",
-    "https://www.conference.usche.ac.tz:8443",
-    "https://usche.ac.tz",
-    "https://www.usche.ac.tz",
+    "https://usche.udom.ac.tz",   
+    "https://www.usche.udom.ac.tz",
 ]
 
 # Application definition
@@ -200,9 +196,9 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ),
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        # 'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',        
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 8
@@ -370,4 +366,4 @@ CELERY_BEAT_SCHEDULE = {
 
 # Proxy configuration
 USE_X_FORWARDED_HOST = True
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
