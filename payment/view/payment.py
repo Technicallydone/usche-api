@@ -15,13 +15,11 @@ from conference.models import Conference
 from payment.enums.payment_status import PaymentStatus
 from payment.models import Payment
 from payment.serializers import (
-    PaymentStatusUpdateSerializer,
-    CompletedPaymentSerializer,
     UploadPaymentSlipSerializer,
-    RequestPaymentDetailSerializer,
     PaymentSerializer,
     PaymentQuerySerializer,
-    PaymentDecisionSerializer
+    PaymentDecisionSerializer,
+    RequestJoinConferenceSerializer
 )
 from payment.tasks import process_payment_approval
 from services.email.tasks import send_email_task
@@ -34,6 +32,7 @@ from user.permissions import HasAppPermission
 from utils.beem_sms import BeemSMSClient
 from utils.send_email import send_payment_rejection_email
 from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import get_object_or_404
 
 
 logger = logging.getLogger(__name__)
@@ -52,8 +51,106 @@ class PaymentViewSet(viewsets.ViewSet):
         "reject_payment": AppPermissionEnum.REJECT_PAYMENTS.value,
         'download_payment_slip': AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP.value,
         'reject': AppPermissionEnum.REJECT_PAYMENTS.value,
-        'approve': AppPermissionEnum.APPROVE_PAYMENTS.value
+        'approve': AppPermissionEnum.APPROVE_PAYMENTS.value,
+        'my_payments': AppPermissionEnum.READ_OWN_PAYMENTS.value,
+        'create_payment': AppPermissionEnum.REQUEST_JOIN_CONFERENCE.value,
     }
+    
+    @action(detail=True, methods=["post"], url_path="request-join")
+    def request_join_conference(self, request: Request, pk=None):
+        serializer = RequestJoinConferenceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        try:
+            conference = get_object_or_404(Conference, conference_id=pk)
+
+            payment = Payment.objects.create(
+                user=request.user,
+                conference=conference,
+                amount=serializer.validated_data["amount"],
+                payment_slip=serializer.validated_data["payment_slip"],
+                status=PaymentStatus.PENDING.value,
+            )
+
+            # EMAIL (NO BUTTON)
+            send_email_task.delay(
+                subject="Conference Join Request Received",
+                to=payment.user.email,
+                greeting=f"Hello {payment.user.first_name},",
+                lines=[
+                    "We have received your conference join request successfully.",
+                    f"Amount: {payment.amount}",
+                    "Your request is now under review by the finance team.",
+                ],
+                salutations=["Best regards,", "Conference Secretariat"],
+                footer_text="© 2026 Conference Management System",
+            )
+
+            return Response(
+                {"detail": "Join request submitted", "id": payment.payment_id},
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating payment request: {e}")
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=True, methods=['get'], url_path='retrieve')
+    def retrieve_payment(self, request: Request, pk=None):
+        try:
+            payment = get_object_or_404(
+                Payment,
+                payment_id=pk
+            )
+
+            serializer = PaymentSerializer(payment)
+
+            return Response(
+                data=serializer.data,
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving payment: {e}")
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    @action(detail=False, methods=['get'], url_path='mine')
+    def my_payments(self, request: Request):
+        user = cast(User, request.user)
+
+        try:
+            payments = Payment.objects.filter(user=user).order_by("-timestamp")
+
+            paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
+            page = paginator.paginate_queryset(payments, request)
+
+            if page is not None:
+                serializer = PaymentSerializer(page, many=True)
+                return paginator.get_paginated_response(serializer.data)
+
+            serializer = PaymentSerializer(payments, many=True)
+
+            return Response(
+                data=serializer.data,
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Error retrieving my payments: {e}")
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=True, methods=["post"], url_path="reject")
     def reject(self, request: Request, pk=None):
@@ -76,6 +173,21 @@ class PaymentViewSet(viewsets.ViewSet):
                 payment.save()
 
             logger.info(f"Payment {pk} rejected by {request.user}")
+            
+            send_email_task.delay(
+                subject="Payment Rejected - USChE Conference",
+                to=payment.user.email,
+                greeting=f"Hello {payment.user.first_name},",
+                lines=[
+                    "We regret to inform you that your recent payment submission has been rejected.",
+                    f"Reason: {serializer.validated_data.get('comment') or 'No reason was provided.'}",
+                    "Please review the issue and submit a new payment."
+                ],
+                salutations=["Best regards,", "The USChE Finance Team"],
+                button_text="Submit New Payment",
+                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/conference/payments/{payment.payment_id}/details",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
 
             return Response(
                 {"detail": "Payment rejected successfully"},
@@ -126,6 +238,21 @@ class PaymentViewSet(viewsets.ViewSet):
                 payment.save()
 
             logger.info(f"Payment {pk} approved by {request.user}")
+            
+            send_email_task.delay(
+                subject="Payment Approved - USChE Conference",
+                to=payment.user.email,
+                greeting=f"Hello {payment.user.first_name},",
+                lines=[
+                    "We are pleased to inform you that your payment has been successfully approved.",
+                    "Your conference registration is now confirmed.",
+                    "We look forward to your participation."
+                ],
+                salutations=["Best regards,", "The USChE Finance Team"],
+                button_text="View Conference Details",
+                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/conference/payments/{payment.payment_id}/details",
+                footer_text="© 2026 USChE - University of Dodoma"
+            )
 
             return Response(
                 {
@@ -189,65 +316,6 @@ class PaymentViewSet(viewsets.ViewSet):
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-    
-    @action(detail=False, methods=["get"])
-    def approved(self, request: HttpRequest):
-        
-        conference_id = request.GET.get("conference_id")
-        search_query = request.GET.get('search_query')
-        
-        if conference_id is None:
-            return Response(data={"detail": "Conference id is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            # Use the get_approved_payments method here
-            payments = Payment.get_approved(conference=conference, search_query=search_query)
-            
-            paginator = PageNumberPagination()
-            page = paginator.paginate_queryset(payments, request)
-            
-            if page is not None:
-                response_serializer = CompletedPaymentSerializer(page, many=True)
-                return paginator.get_paginated_response(response_serializer.data)
-            
-            response_serializer = CompletedPaymentSerializer(payments, many=True)
-            return Response(data=response_serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error while retrieving approved payments: {e}", exc_info=True)
-            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=False, methods=["post"])
-    def retrieve_payment(self, request: HttpRequest):
-        if not request.user.is_authenticated:
-            return Response(data={"detail": "You are not authorized"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        user = cast(User, request.user)
-        request_serializer = RequestPaymentDetailSerializer(data=request.data)
-        request_serializer.is_valid(raise_exception=True)
-        
-        conference_id = request_serializer.validated_data.get("conference_id")
-        
-        try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            payment = Payment.get_payment(user=user, conference=conference)
-            
-            if payment is None:
-                return Response(data={"detail": "You don't have any payment to this conference"}, status=status.HTTP_404_NOT_FOUND)
-            
-            response_serializer = PaymentSerializer(payment, many=False)
-            return Response(data=response_serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error while retrieving payment detail: {e}", exc_info=True)
-            return Response(data={"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     @action(detail=False, methods=['post'], url_path='upload-payment-slip')
     def upload_payment_slip(self, request: HttpRequest):
@@ -342,161 +410,4 @@ class PaymentViewSet(viewsets.ViewSet):
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    @action(detail=False, methods=['post'], url_path='complete-payment')
-    def complete_payment(self, request: HttpRequest):
-        """Complete a payment for an abstract, mark it as approved and notify the user."""
-
-        serializer = PaymentStatusUpdateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        payment_id = serializer.validated_data.get("payment_id")
-
-        try:
-            with transaction.atomic():
-
-                payment = Payment.mark_as_approved(payment_id=payment_id)
-
-                if not payment:
-                    return Response(
-                        {"detail": "Payment not found or already processed."},
-                        status=status.HTTP_404_NOT_FOUND
-                    )
-
-                if payment.abstract:
-                    payment.abstract.mark_payment_done()
-
-                Attendee.create_attendee(
-                    conference=payment.conference,
-                    participant=payment.user
-                )
-
-            # Send approval email AFTER transaction succeeds
-            send_email_task.delay(
-                subject="Payment Approved - USChE Conference",
-                to=payment.user.email,
-                greeting=f"Hello {payment.user.first_name},",
-                lines=[
-                    "We are pleased to inform you that your payment has been successfully approved.",
-                    "Your conference registration is now confirmed.",
-                    "We look forward to your participation."
-                ],
-                salutations=["Best regards,", "The USChE Finance Team"],
-                button_text="View Conference Details",
-                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard",
-                footer_text="© 2026 USChE - University of Dodoma"
-            )
-
-            process_payment_approval.delay({
-                "user_id": str(payment.user.user_id)
-            })
-
-            return Response(
-                {"detail": "Payment completed successfully and user notified."},
-                status=status.HTTP_200_OK
-            )
-
-        except Exception:
-            logger.exception("Error while completing payment.")
-            return Response(
-                {"detail": "An unexpected error occurred."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['post'])
-    def reject_payment(self, request: HttpRequest):
-        """Reject a payment and notify the user via email."""
-
-        user = cast(User, request.user)
-
-        serializer = PaymentStatusUpdateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        payment_id = serializer.validated_data.get("payment_id")
-        comment = serializer.validated_data.get("comment")
-
-        try:
-            with transaction.atomic():
-
-                payment = Payment.objects.select_for_update().get(payment_id=payment_id)
-
-                if payment.status != PaymentStatus.PENDING.value:
-                    return Response(
-                        {"detail": "Payment has already been processed."},
-                        status=status.HTTP_409_CONFLICT
-                    )
-
-                payment.status = PaymentStatus.REJECTED.value
-                payment.comment = comment
-                payment.rejected_by = user
-                payment.save(update_fields=["status", "comment", "rejected_by"])
-
-            send_email_task.delay(
-                subject="Payment Rejected - USChE Conference",
-                to=payment.user.email,
-                greeting=f"Hello {payment.user.first_name},",
-                lines=[
-                    "We regret to inform you that your recent payment submission has been rejected.",
-                    f"Reason: {comment or 'No reason was provided.'}",
-                    "Please review the issue and submit a new payment."
-                ],
-                salutations=["Best regards,", "The USChE Finance Team"],
-                button_text="Submit New Payment",
-                button_url=f"{settings.FRONTEND_BASE_URL}/auth",
-                footer_text="© 2026 USChE - University of Dodoma"
-            )
-
-            return Response(
-                {"detail": "Payment rejected successfully and user notified."},
-                status=status.HTTP_200_OK
-            )
-
-        except Payment.DoesNotExist:
-            return Response(
-                {"detail": "Payment not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        except Exception:
-            logger.exception("Error while rejecting payment.")
-            return Response(
-                {"detail": "An unexpected error occurred."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def pending_payments(self, request: HttpRequest):
-        conference_id = request.GET.get("conference_id")
-        search_query = request.GET.get("search_query")
-        
-        
-        if not conference_id:
-            return Response(
-                data={"detail": "Conference ID is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
-            
-            payments = Payment.get_pending(conference=conference, search_query=search_query)
-            
-            paginator = PageNumberPagination()
-            page = paginator.paginate_queryset(payments, request)
-            
-            if page is not None:
-                response_serializer = PaymentSerializer(page, many=True)
-                return paginator.get_paginated_response(response_serializer.data)
-            
-            response_serializer = PaymentSerializer(payments, many=True)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        except Exception as e:
-            logger.error(f"Error while retrieving pending payments: {e}")
-            return Response(
-                {"detail": "An unexpected error occurred"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

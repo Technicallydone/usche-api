@@ -43,12 +43,15 @@ class AppPermissionEnum(str, Enum):
     UPDATE_CONFERENCE = 'permission.update.conference'
     DELETE_CONFERENCE = 'permission.delete.conference'
     CREATE_CONFERENCE = 'permission.create.conference'
+    REQUEST_JOIN_CONFERENCE = 'permission.join.request.conference'
         
     # Theme Management
     CREATE_MAIN_THEME = 'permission.create.main-theme'
     UPDATE_MAIN_THEME = 'permission.update.main-theme'
     READ_MAIN_THEME = 'permission.view.main-theme'
     DELETE_MAIN_THEME = 'permission.delete.main-theme'
+    READ_CONFERENCE_JOIN_REQUEST= 'permission.read.join.request.conference'
+    READ_OWN_CONFERENCE_JOIN_REQUEST= 'permission.read.own.join.request.conference'
     
     CREATE_SUB_THEME = 'permission.create.sub-theme'
     UPDATE_SUB_THEME = 'permission.update.sub-theme'
@@ -73,6 +76,7 @@ class AppPermissionEnum(str, Enum):
     UPDATE_ABSTRACT = 'permission.update.abstract'
     DELETE_ABSTRACT = 'permission.delete.abstract'
     DOWNLOAD_ABSTRACT_DOCUMENT = 'permission.abstract.download'
+    DOWNLOAD_OWN_ABSTRACT_DOCUMENT = 'permission.abstract.download.own'
     APPROVE_ABSTRACT = 'permission.abstract.approve'
     REJECT_ABSTRACT = 'permission.abstract.reject'
 

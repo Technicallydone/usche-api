@@ -48,7 +48,13 @@ class Role(models.Model):
                                 AppPermissionEnum.READ_PROFILE,
                                 AppPermissionEnum.CHANGE_PASSWORD,
                                 AppPermissionEnum.SIGN_OUT,
-                                 AppPermissionEnum.READ_PROFILE
+                                AppPermissionEnum.READ_PROFILE,
+                                AppPermissionEnum.READ_OWN_CONFERENCE_JOIN_REQUEST,
+                                AppPermissionEnum.REQUEST_JOIN_CONFERENCE,
+                                AppPermissionEnum.READ_OWN_PAYMENTS,
+                                AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
+                                AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
                             ]
                         )
                         role.permissions.set(default_permissions)
@@ -60,7 +66,13 @@ class Role(models.Model):
                                 AppPermissionEnum.READ_USERS,
                                 AppPermissionEnum.READ_USERS_REPORT,
                                 AppPermissionEnum.SIGN_OUT,
-                                 AppPermissionEnum.READ_PROFILE
+                                AppPermissionEnum.READ_PROFILE,
+                                AppPermissionEnum.READ_OWN_CONFERENCE_JOIN_REQUEST,
+                                AppPermissionEnum.REQUEST_JOIN_CONFERENCE,
+                                AppPermissionEnum.READ_OWN_PAYMENTS,
+                                AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
+                                AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
                             ]
                         )
                         role.permissions.set(organizer_permissions)
@@ -73,7 +85,13 @@ class Role(models.Model):
                                 AppPermissionEnum.UPDATE_USERS,
                                 AppPermissionEnum.READ_USERS_REPORT,
                                 AppPermissionEnum.SIGN_OUT,
-                                AppPermissionEnum.READ_PROFILE
+                                AppPermissionEnum.READ_PROFILE,
+                                AppPermissionEnum.READ_OWN_CONFERENCE_JOIN_REQUEST,
+                                AppPermissionEnum.REQUEST_JOIN_CONFERENCE,
+                                AppPermissionEnum.READ_OWN_PAYMENTS,
+                                AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
+                                AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
                             ]
                         )
                         role.permissions.set(bursar_permissions)

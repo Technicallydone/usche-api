@@ -1,5 +1,4 @@
 from .conference_detail_serializer import ConferenceDetailSerializer
-from .request_join_conference import RequestJoinConferenceSerializer
 from .conference_stats_serializer import ConferenceStatsSerializer
 from .conference_serializer import ConferenceSerializer
 

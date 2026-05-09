@@ -1,5 +1,6 @@
 import mimetypes
 import os
+import re
 from django.http import FileResponse
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
@@ -333,10 +334,25 @@ class ConferenceViewSet(viewsets.ViewSet):
             # -----------------------------------
             # PAYMENT STATS
             # -----------------------------------
-            payment_aggregate = Payment.objects.aggregate(
-                total_amount=Sum('amount'),
+            payment_qs = Payment.objects.all()
+
+            payment_aggregate = payment_qs.aggregate(
                 total_transactions=Count('payment_id')
             )
+
+            total_amount = 0
+            currency_summary = {}
+
+            for payment in payment_qs:
+                value = payment.amount.strip().upper()
+
+                match = re.match(r"^(\d+(\.\d{1,2})?)\s?([A-Z]{3})$", value)
+                if match:
+                    amount = float(match.group(1))
+                    currency = match.group(3)
+
+                    total_amount += amount
+                    currency_summary[currency] = currency_summary.get(currency, 0) + amount
 
             recent_payments = Payment.objects.filter(
                 timestamp__gte=last_7_days

@@ -19,7 +19,7 @@ class Payment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="payments")
     abstract = models.ForeignKey(Abstract, on_delete=models.CASCADE, related_name="payment", null=True, blank=True)
     conference = models.ForeignKey(Conference, on_delete=models.CASCADE, related_name="payment", null=False, blank=False)
-    amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Amount paid")
+    amount = models.CharField(max_length=50, help_text="Amount paid")
     payment_slip = models.FileField(upload_to=upload_payment_receipt, validators=[validate_document_type], help_text="Upload payment slip")
     comment = models.TextField(null=False, blank=False)
     status = models.CharField(

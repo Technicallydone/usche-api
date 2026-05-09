@@ -10,7 +10,7 @@ class PaymentSerializer(serializers.Serializer):
     abstract = serializers.PrimaryKeyRelatedField(read_only=True)
     conference = serializers.PrimaryKeyRelatedField(read_only=True)
 
-    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    amount = serializers.CharField()
 
     payment_slip = serializers.SerializerMethodField()
 

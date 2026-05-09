@@ -112,9 +112,6 @@ class AbstractViewSet(viewsets.ViewSet):
                 sub_theme_id = serializer.validated_data.get("sub_theme")
 
                 sub_theme = SubTheme.get_sub_theme_by_id(sub_theme_id=sub_theme_id)
-                
-                print(sub_theme.sub_theme_id)
-                print(sub_theme.title)
 
                 if not sub_theme:
                     return Response(
