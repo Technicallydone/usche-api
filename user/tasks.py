@@ -5,6 +5,7 @@ from django.db import transaction
 from django.core.mail import BadHeaderError
 from conference.model import Conference
 from invitation.models import Invitation
+from services.email.tasks import send_email_task
 from settings.models import Settings
 from usche_app import settings
 from user.models import User
@@ -49,43 +50,80 @@ def send_low_priority_email():
 @shared_task()
 def send_high_priority_email():
     sms = BeemSMSClient()
-    
+
     try:
         with transaction.atomic():
 
-            user = User.objects.filter(is_active=False, resend_activation_email=True).order_by('-created_at').first()
+            user = (
+                User.objects
+                .filter(is_active=False, resend_activation_email=True)
+                .order_by('-created_at')
+                .first()
+            )
 
-            if user:
-                # send_activation_email(user=user)
-                user.resend_activation_email = False
-                user.save(update_fields=['resend_activation_email'])
-                token = generate_token(user=user)
-                
+            if not user:
+                logger.info("No pending activation emails found.")
+                return
 
-                send_activation_email(user=user)
-                
-                try:
-                    message = (
-                        f"Dear {user.title} {user.last_name},\n\n"
-                        "Your registration is successful. Please click the link below to activate your account:\n\n"
-                        f"link: {settings.FRONTEND_BASE_URL}/activate/{token}"
-                    )
+            # -----------------------------------
+            # LOCK / MARK AS PROCESSED
+            # -----------------------------------
+            user.resend_activation_email = False
+            user.save(update_fields=['resend_activation_email'])
 
+            token = generate_token(user=user)
+            activation_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
 
-                    sms_response = sms.send_sms(
-                        message=strip_unicode(message),
-                        recipients=[user.phone_number]
-                    )
+            # -----------------------------------
+            # SEND EMAIL (NEW SYSTEM)
+            # -----------------------------------
+            send_email_task.delay(
+                subject="Activate Your Account - USChE",
+                to=user.email,
+                greeting=f"Hello {user.first_name},",
+                lines=[
+                    "Your registration is successful.",
+                    "Please activate your account using the button below.",
+                ],
+                button_text="Activate Account",
+                button_url=activation_url,
+                salutations=[
+                    "Best regards,",
+                    "USChE Team"
+                ],
+                footer_text="© 2026 USChE - University of Dodoma",
+            )
 
-                    logger.info(f"SMS sent successfully: {sms_response}")
-                except Exception as sms_error:
-                    logger.error(f"SMS sending failed: {str(sms_error)}", exc_info=True)
-            
-    except BadHeaderError as bhe:
-        logger.error(f"Email sending failed due to BadHeaderError: {str(bhe)}", exc_info=True)
+            # -----------------------------------
+            # SEND SMS
+            # -----------------------------------
+            try:
+                message = (
+                    f"Dear {user.title or ''} {user.last_name},\n\n"
+                    "Your registration is successful. "
+                    "Please activate your account using the link sent to your email.\n\n"
+                    f"{activation_url}"
+                )
+
+                sms_response = sms.send_sms(
+                    message=strip_unicode(message),
+                    recipients=[user.phone_number]
+                )
+
+                logger.info(f"SMS sent successfully: {sms_response}")
+
+            except Exception as sms_error:
+                logger.error(
+                    f"SMS sending failed: {str(sms_error)}",
+                    exc_info=True
+                )
 
     except Exception as e:
-        logger.error(f"Email sending failed: {str(e)}", exc_info=True)
+        logger.error(
+            f"High priority email task failed: {str(e)}",
+            exc_info=True
+        )
+        raise
         
 
     
