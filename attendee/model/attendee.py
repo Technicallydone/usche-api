@@ -17,6 +17,7 @@ class Attendee(models.Model):
         choices=AttendeeStatus.choices(),
         default=AttendeeStatus.default(),
     )
+    created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'attendees'
@@ -102,6 +103,40 @@ class Attendee(models.Model):
         """Get attendees by a list of IDs."""
         return cls.objects.filter(attendee_id__in=attendee_ids)
     
+    @classmethod
+    def filter_attendees(
+        cls,
+        search_query: str = None,
+        conference_id: str = None,
+        created_from=None,
+        created_to=None
+    ):
+        filters = Q(participant__is_superuser=False)
+
+        if search_query:
+            search_query = search_query.lower()
+            filters &= (
+                Q(participant__first_name__icontains=search_query) |
+                Q(participant__middle_name__icontains=search_query) |
+                Q(participant__last_name__icontains=search_query)
+            )
+
+        if conference_id:
+            filters &= Q(conference__conference_id=conference_id)
+
+        if created_from:
+            filters &= Q(created_at__date__gte=created_from)
+
+        if created_to:
+            filters &= Q(created_at__date__lte=created_to)
+
+        return (
+            cls.objects
+            .filter(filters)
+            .select_related("participant", "conference")
+            .order_by("-created_at")
+        )
+        
     @classmethod
     def get_conference_attendees(cls, conference: Conference, search_query: str = None):
         

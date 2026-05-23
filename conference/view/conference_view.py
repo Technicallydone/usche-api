@@ -81,6 +81,32 @@ class ConferenceViewSet(viewsets.ViewSet):
         'toggle_pre_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value
     }
     
+    @action(detail=False, methods=["get"], url_path="list")
+    def list_conferences(self, request: Request):
+        try:
+            conferences = Conference.objects.all().order_by("-listing_date")
+
+            return Response(
+                [
+                    {
+                        "conference_id": str(conf.conference_id),
+                        "conference_name": conf.conference_name,
+                    }
+                    for conf in conferences
+                ],
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching conferences: {e}",
+                exc_info=True,
+            )
+            return Response(
+                {"detail": "Failed to fetch conferences"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
     @action(detail=False, methods=['get'], url_path='sliders/(?P<slider_id>[^/.]+)')
     def retrieve_conference_slider(self, request: Request, slider_id=None):
         try:
@@ -282,7 +308,7 @@ class ConferenceViewSet(viewsets.ViewSet):
             )
     
     @action(detail=False, methods=['get'], url_path='stats')
-    def stats(self, request):
+    def stats(self, request: Request):
         try:
             now = timezone.now()
             last_7_days = now - timedelta(days=7)
@@ -300,18 +326,19 @@ class ConferenceViewSet(viewsets.ViewSet):
             # USER & ATTENDEE STATS
             # -----------------------------------
             total_users = User.objects.count()
+
             total_attendees = Attendee.objects.count()
 
             recent_users = User.objects.filter(
                 created_at__gte=last_7_days
             ).order_by('-created_at')[:10]
 
-            # registrations per year
+            # registrations per year (FROM ATTENDEES)
             registrations_per_year = (
-                User.objects
-                .values('created_at__year')
-                .annotate(count=Count('user_id'))
-                .order_by('created_at__year')
+                Attendee.objects
+                .values('conference__year')
+                .annotate(count=Count('attendee_id'))
+                .order_by('conference__year')
             )
 
             # -----------------------------------
@@ -346,13 +373,20 @@ class ConferenceViewSet(viewsets.ViewSet):
             for payment in payment_qs:
                 value = payment.amount.strip().upper()
 
-                match = re.match(r"^(\d+(\.\d{1,2})?)\s?([A-Z]{3})$", value)
+                match = re.match(
+                    r"^(\d+(\.\d{1,2})?)\s?([A-Z]{3})$",
+                    value
+                )
+
                 if match:
                     amount = float(match.group(1))
                     currency = match.group(3)
 
                     total_amount += amount
-                    currency_summary[currency] = currency_summary.get(currency, 0) + amount
+
+                    currency_summary[currency] = (
+                        currency_summary.get(currency, 0) + amount
+                    )
 
             recent_payments = Payment.objects.filter(
                 timestamp__gte=last_7_days
@@ -362,7 +396,9 @@ class ConferenceViewSet(viewsets.ViewSet):
             # THEMES & TARGET GROUPS
             # -----------------------------------
             total_main_themes = MainTheme.objects.count()
+
             total_sub_themes = SubTheme.objects.count()
+
             total_target_groups = TargetGroup.objects.count()
 
             # -----------------------------------
@@ -372,9 +408,11 @@ class ConferenceViewSet(viewsets.ViewSet):
                 Attendee.objects
                 .values(
                     'conference__conference_id',
-                    'conference__conference_name'
+                    'conference__conference_name',
                 )
-                .annotate(total_attendees=Count('attendee_id'))
+                .annotate(
+                    total_attendees=Count('attendee_id')
+                )
                 .order_by('-total_attendees')[:5]
             )
 
@@ -397,8 +435,11 @@ class ConferenceViewSet(viewsets.ViewSet):
                 },
 
                 "payments": {
-                    "total_amount": payment_aggregate.get("total_amount") or 0,
-                    "total_transactions": payment_aggregate.get("total_transactions") or 0,
+                    "total_amount": total_amount,
+                    "currency_summary": currency_summary,
+                    "total_transactions": (
+                        payment_aggregate.get("total_transactions") or 0
+                    ),
                     "last_7_days": recent_payments,
                 },
 
@@ -409,11 +450,21 @@ class ConferenceViewSet(viewsets.ViewSet):
                 },
 
                 "trends": {
-                    "registrations_per_year": list(registrations_per_year),
+                    "registrations_per_year": [
+                        {
+                            "year": item["conference__year"],
+                            "count": item["count"]
+                        }
+                        for item in registrations_per_year
+                    ],
+
                     "recent_users": [
                         {
                             "id": u.user_id,
-                            "full_name": f"{u.first_name} {u.last_name}",
+                            "full_name": (
+                                f"{u.first_name or ''} "
+                                f"{u.last_name or ''}"
+                            ).strip(),
                             "email": u.email,
                             "created_at": u.created_at,
                         }
@@ -423,8 +474,9 @@ class ConferenceViewSet(viewsets.ViewSet):
 
                 "top_conferences": list(top_conferences),
             }
-            
+
             serializer = ConferenceStatsSerializer(data=data)
+
             serializer.is_valid(raise_exception=True)
 
             return Response(
@@ -433,7 +485,11 @@ class ConferenceViewSet(viewsets.ViewSet):
             )
 
         except Exception as e:
-            logger.error(f"Unexpected error occurred: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error occurred: {e}",
+                exc_info=True
+            )
+
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -926,7 +982,6 @@ class ConferenceViewSet(viewsets.ViewSet):
                     "slider_images",
                     "sponsors",
                     "speakers",
-                    "attendees",
                     "registration_fees",
                     "schedule_days",
                     "bank_accounts",

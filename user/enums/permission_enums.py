@@ -27,6 +27,14 @@ class AppPermissionEnum(str, Enum):
     READ_USERS_REPORT = 'permission.view.users.report'
     UPDATE_STAFF_STATUS = 'permission.update.staff.status'
     MANAGE_STAFF_MEMBERSHIP = 'permission.manage.staff.membership'
+    REQUEST_JOIN_TOCKER = 'permission.join.request.ticket'
+    
+    # Attendees
+    READ_ATTENDEES = 'permission.view.attendees'
+    CREATE_ATTENDEES = 'permission.create.attendees'
+    UPDATE_ATTENDEES = 'permission.update.attendees'
+    DELETE_ATTENDEES = 'permission.delete.attendees'
+    UPDATE_ATTENDEE_STATUS = 'permission.update.attendee.status'
 
     # Profile & Password
     READ_PROFILE = 'permission.view.profile'
@@ -52,6 +60,7 @@ class AppPermissionEnum(str, Enum):
     DELETE_MAIN_THEME = 'permission.delete.main-theme'
     READ_CONFERENCE_JOIN_REQUEST= 'permission.read.join.request.conference'
     READ_OWN_CONFERENCE_JOIN_REQUEST= 'permission.read.own.join.request.conference'
+    REQUEST_JOIN_TICKET = 'permission.join.request.ticket'
     
     CREATE_SUB_THEME = 'permission.create.sub-theme'
     UPDATE_SUB_THEME = 'permission.update.sub-theme'

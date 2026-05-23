@@ -6,3 +6,4 @@ class UserFilterQuerySerializer(serializers.Serializer):
     staff = serializers.BooleanField(required=False)
     created_from = serializers.DateField(required=False)
     created_to = serializers.DateField(required=False)
+    conference_id = serializers.CharField(required=False)

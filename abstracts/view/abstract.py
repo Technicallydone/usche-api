@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 
 from abstracts.enums.abstract_status import AbstractStatus
-from abstracts.models import Abstract
+from abstracts.models import Abstract, AbstractAuthor
 from abstracts.serializers import (
     AbstractSubmissionSerializer,
     AbstractSerializer,
@@ -94,6 +94,7 @@ class AbstractViewSet(viewsets.ViewSet):
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
+            logger.error(e, exc_info=True)
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -101,16 +102,14 @@ class AbstractViewSet(viewsets.ViewSet):
     
     def create(self, request: Request):
         user = cast(User, request.user)
+
         serializer = AbstractSubmissionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
-        print(serializer)
 
         try:
             with transaction.atomic():
 
                 sub_theme_id = serializer.validated_data.get("sub_theme")
-
                 sub_theme = SubTheme.get_sub_theme_by_id(sub_theme_id=sub_theme_id)
 
                 if not sub_theme:
@@ -139,6 +138,9 @@ class AbstractViewSet(viewsets.ViewSet):
                         status=status.HTTP_403_FORBIDDEN,
                     )
 
+                # -----------------------------------
+                # CREATE ABSTRACT
+                # -----------------------------------
                 abstract = Abstract.objects.create(
                     title=serializer.validated_data.get("title"),
                     content=serializer.validated_data.get("content"),
@@ -146,8 +148,25 @@ class AbstractViewSet(viewsets.ViewSet):
                     sub_theme=sub_theme,
                     user=user,
                     document=serializer.validated_data.get("document"),
-                    authors=serializer.validated_data.get("authors"),
                 )
+
+                # -----------------------------------
+                # CREATE AUTHORS (IMPORTANT PART)
+                # -----------------------------------
+                authors_data = serializer.validated_data.get("authors", [])
+
+                abstract_authors = [
+                    AbstractAuthor(
+                        abstract=abstract,
+                        full_name=author["full_name"],
+                        affiliation=author["affiliation"],
+                        is_presenting_author=author.get("is_presenting_author", False),
+                        order=author.get("order", idx),
+                    )
+                    for idx, author in enumerate(authors_data)
+                ]
+
+                AbstractAuthor.objects.bulk_create(abstract_authors)
 
             return Response(
                 {
@@ -157,16 +176,10 @@ class AbstractViewSet(viewsets.ViewSet):
                 status=status.HTTP_201_CREATED,
             )
 
-        except ValidationError as e:
+        except Exception as e:
+            logger.error(e, exc_info=True)
             return Response(
                 {"detail": str(e)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        except Exception as e:
-            logger.exception("Unexpected error submitting abstract")
-            return Response(
-                {"detail": "Internal server error. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     

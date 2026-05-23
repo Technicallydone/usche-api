@@ -54,7 +54,8 @@ class Role(models.Model):
                                 AppPermissionEnum.READ_OWN_PAYMENTS,
                                 AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
                                 AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
-                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.REQUEST_JOIN_TICKET
                             ]
                         )
                         role.permissions.set(default_permissions)
@@ -72,7 +73,8 @@ class Role(models.Model):
                                 AppPermissionEnum.READ_OWN_PAYMENTS,
                                 AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
                                 AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
-                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.REQUEST_JOIN_TICKET
                             ]
                         )
                         role.permissions.set(organizer_permissions)
@@ -91,7 +93,8 @@ class Role(models.Model):
                                 AppPermissionEnum.READ_OWN_PAYMENTS,
                                 AppPermissionEnum.DOWNLOAD_PAYMENT_SLIP,
                                 AppPermissionEnum.DOWNLOAD_OWN_ABSTRACT_DOCUMENT,
-                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT
+                                AppPermissionEnum.DOWNLOAD_ABSTRACT_DOCUMENT,
+                                AppPermissionEnum.REQUEST_JOIN_TICKET
                             ]
                         )
                         role.permissions.set(bursar_permissions)

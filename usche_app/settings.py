@@ -350,11 +350,6 @@ CELERY_TASK_DEFAULT_RETRY_DELAY = 5
 CELERY_TASK_MAX_RETRIES = 3
 
 CELERY_BEAT_SCHEDULE = {
-    # 'send_deadline_reminder_high_priority_email': {
-    #     'task': 'user.tasks.send_deadline_reminderhigh_priority_email',  
-    #     'schedule': timedelta(days=3),
-    #     'options': {'queue': 'high_priority', 'priority': 10},
-    # },
     'send_high_priority_email': {
         'task': 'user.tasks.send_high_priority_email',  
         'schedule': timedelta(minutes=1),
@@ -378,6 +373,11 @@ CELERY_BEAT_SCHEDULE = {
     'generate_certificates_for_conference_task': {
         'task': 'certificate.tasks.generate_certificates_for_conference_task',
         'schedule': timedelta(minutes=5),
+        'options': {'queue': 'high_priority', 'priority': 10},
+    },
+    'sync_recent_logged_in_users_as_attendees': {
+        'task': 'attendee.tasks.sync_recent_logged_in_users_as_attendees',
+        'schedule': timedelta(minutes=1),
         'options': {'queue': 'high_priority', 'priority': 10},
     },
 }

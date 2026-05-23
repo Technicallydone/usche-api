@@ -13,7 +13,6 @@ class Abstract(models.Model):
     abstract_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     sub_theme = models.ForeignKey(SubTheme, on_delete=models.CASCADE, related_name="abstracts")
     title = models.CharField(max_length=255, null=False, blank=False)
-    authors = models.TextField(null=True, blank=True, help_text="Comma-separated list of author names")
     content = models.TextField(null=False, blank=False)
     keywords = models.CharField(max_length=255, null=False, blank=False, help_text="3-5 keywords separated by commas.")
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="abstracts")
@@ -182,4 +181,4 @@ class Abstract(models.Model):
                 Q(user__last_name__icontains=search_query)
             )
 
-        return cls.objects.filter(filters)
+        return cls.objects.filter(filters).order_by('-created_at')

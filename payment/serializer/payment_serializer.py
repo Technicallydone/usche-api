@@ -8,6 +8,8 @@ class PaymentSerializer(serializers.Serializer):
     user = UserResponseSerializer()
 
     abstract = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    conference_name = serializers.SerializerMethodField()
     conference = serializers.PrimaryKeyRelatedField(read_only=True)
 
     amount = serializers.CharField()
@@ -23,3 +25,6 @@ class PaymentSerializer(serializers.Serializer):
 
     def get_payment_slip(self, obj: Payment):
         return f"{self.context.get('payment_slip_url', '')}/{obj.payment_id}/"
+    
+    def get_conference_name(self, obj: Payment):
+        return getattr(obj.conference, "conference_name", None)

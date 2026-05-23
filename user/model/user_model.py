@@ -127,6 +127,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     occupation = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
+    last_login = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ['first_name', 'last_name', 'phone_number', 'title']

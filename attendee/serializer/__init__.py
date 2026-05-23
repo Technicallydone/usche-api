@@ -1,3 +1,3 @@
-from .attendee_serializer import AttendeeSerializer
+from .attendee_serializer import AttendeeSerializer, UpdateAttendeeStatusSerializer
 from .uninvited_attendee_serailizer import UninvitedAttendeeSerializer
 from .attendee_response_serializer import AttendeeResponseSerializer

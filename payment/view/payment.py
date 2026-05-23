@@ -219,44 +219,81 @@ class PaymentViewSet(viewsets.ViewSet):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-                attendee, created = Attendee.objects.get_or_create(
+                attendee = Attendee.objects.filter(
                     conference=payment.conference,
-                    participant=payment.user,
-                    defaults={
-                        "status": AttendeeStatus.ACTIVE.value,
-                        "invitation_sent": False,
-                    }
-                )
+                    participant=payment.user
+                ).first()
 
-                if not created:
+                if attendee:
                     attendee.status = AttendeeStatus.ACTIVE.value
-                    attendee.save()
+                    attendee.invitation_sent = False
+                    attendee.save(
+                        update_fields=[
+                            "status",
+                            "invitation_sent",
+                        ]
+                    )
+
+                else:
+                    attendee = Attendee.objects.create(
+                        conference=payment.conference,
+                        participant=payment.user,
+                        status=AttendeeStatus.ACTIVE.value,
+                        invitation_sent=False,
+                    )
 
                 payment.status = PaymentStatus.COMPLETED.value
                 payment.comment = ""
                 payment.rejected_by = None
-                payment.save()
 
-            logger.info(f"Payment {pk} approved by {request.user}")
-            
+                payment.save(
+                    update_fields=[
+                        "status",
+                        "comment",
+                        "rejected_by",
+                    ]
+                )
+
+            logger.info(
+                f"Payment {pk} approved by {request.user}"
+            )
+
             send_email_task.delay(
                 subject="Payment Approved - USChE Conference",
                 to=payment.user.email,
                 greeting=f"Hello {payment.user.first_name},",
                 lines=[
-                    "We are pleased to inform you that your payment has been successfully approved.",
-                    "Your conference registration is now confirmed.",
-                    "We look forward to your participation."
+                    (
+                        "We are pleased to inform you that your "
+                        "payment has been successfully approved."
+                    ),
+                    (
+                        "Your conference registration "
+                        "is now confirmed."
+                    ),
+                    (
+                        "We look forward to your participation."
+                    )
                 ],
-                salutations=["Best regards,", "The USChE Finance Team"],
+                salutations=[
+                    "Best regards,",
+                    "The USChE Finance Team"
+                ],
                 button_text="View Conference Details",
-                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/conference/payments/{payment.payment_id}/details",
+                button_url=(
+                    f"{settings.FRONTEND_BASE_URL}"
+                    f"/dashboard/conference/payments/"
+                    f"{payment.payment_id}/details"
+                ),
                 footer_text="© 2026 USChE - University of Dodoma"
             )
 
             return Response(
                 {
-                    "detail": "Payment approved successfully and attendee activated"
+                    "detail": (
+                        "Payment approved successfully "
+                        "and attendee activated"
+                    )
                 },
                 status=status.HTTP_200_OK,
             )
@@ -268,7 +305,11 @@ class PaymentViewSet(viewsets.ViewSet):
             )
 
         except Exception as e:
-            logger.error(f"Error approving payment {pk}: {e}")
+            logger.error(
+                f"Error approving payment {pk}: {e}",
+                exc_info=True
+            )
+
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

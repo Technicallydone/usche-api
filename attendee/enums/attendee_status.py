@@ -16,7 +16,7 @@ class AttendeeStatus(Enum):
     @classmethod
     def default(cls) -> str:
         """Returns the default value of the status."""
-        return cls.ACTIVE.value
+        return cls.WAITING.value
 
     @classmethod
     def validate(cls, value) -> bool:

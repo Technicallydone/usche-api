@@ -13,7 +13,7 @@ urlpatterns = [
     path('api/v1/themes/', include('themes.urls')),
     path('api/v1/abstracts/', include('abstracts.urls')),
     path('api/v1/payments/', include('payment.urls')),
-    path('api/v1/attendee/', include('attendee.urls')),
+    path('api/v1/attendees/', include('attendee.urls')),
     path('api/v1/invitation/', include('invitation.urls')),
     path('api/v1/certificate/', include('certificate.urls')),
     path('api/v1/feedback/', include('feedback.urls')),

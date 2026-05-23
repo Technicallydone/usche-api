@@ -1,18 +1,14 @@
 from rest_framework import serializers
 
-from attendee.serializer.attendee_serializer import AttendeeSerializer
 from conference.model.conference import Conference
 from conference.serializer.bank_account_serializer import BankAccountSerializer
-from conference.serializer.conference_slider import ConferenceSliderResponseSerializer
 from conference.serializer.group_serializer import TargetGroupSerializer
-from conference.serializer.pre_conference_slider import PreConferenceSliderResponseSerializer
 from conference.serializer.resgistration_fee_serializer import RegistrationFeeSerializer
 from conference.serializer.schedule_day_serializer import ScheduleDaySerializer
 from config.api_endpoints import APIEndpoints
 from speakers.serializer.speaker_serializer import SpeakerSerializer
 from sponsors.serializer.sponsor_serializer import SponsorSerializer
 from themes.serializer.themes_serializer import ThemeSerializer
-from usche_app import settings
 
 
 class ConferenceDetailSerializer(serializers.Serializer):
@@ -47,7 +43,7 @@ class ConferenceDetailSerializer(serializers.Serializer):
 
     sponsors = SponsorSerializer(many=True)
     speakers = SpeakerSerializer(many=True)
-    attendees = AttendeeSerializer(many=True)
+    # attendees = AttendeeSerializer(many=True)
     theme = ThemeSerializer()
     registration_fees = RegistrationFeeSerializer(many=True)
 

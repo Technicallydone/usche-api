@@ -1,111 +1,209 @@
+import base64
 import logging
 from typing import cast
-from django.http import HttpRequest
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from attendee.models import Attendee
-from attendee.serializers import AttendeeResponseSerializer
-from conference.models import Conference
+
 from django.core.exceptions import ValidationError
-from user.models import User
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
+from rest_framework.response import Response
 
-import base64
-
+from attendee.models import Attendee
+from attendee.serializers import (
+    AttendeeSerializer,
+    UpdateAttendeeStatusSerializer,
+)
+from conference.models import Conference
+from user.enums.permission_enums import AppPermissionEnum
+from user.models import User
+from user.permissions import HasAppPermission
+from user.serializers import UserFilterQuerySerializer
 from utils.qr_code_generator import generate_qr_code
-
 
 logger = logging.getLogger(__name__)
 
+
 class AttendeeViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    @action(detail=False, methods=['get'])
-    def conference_attendees(self, request: HttpRequest): 
-        conference_id = request.GET.get("conference_id")
-        search_query = request.GET.get("search_query")
-    
-        
-        
-        if not conference_id:
-            return Response(
-                data={"detail": "Conference ID is required."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
+    permission_classes = [permissions.IsAuthenticated, HasAppPermission]
+
+    permission_mapping = {
+        "list": AppPermissionEnum.READ_ATTENDEES.value,
+        "retrieve": AppPermissionEnum.READ_ATTENDEES.value,
+        "update_status": AppPermissionEnum.UPDATE_ATTENDEE_STATUS.value,
+        "ticket_request": AppPermissionEnum.REQUEST_JOIN_TICKET.value,
+    }
+
+    # -----------------------------------
+    # LIST ATTENDEES
+    # -----------------------------------
+    def list(self, request: Request):
+        serializer = UserFilterQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        search_query = serializer.validated_data.get("search_query")
+        created_from = serializer.validated_data.get("created_from")
+        created_to = serializer.validated_data.get("created_to")
+        conference_id = serializer.validated_data.get("conference_id")
+
         try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            
-            if conference is None:
-                return Response(data={"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
-            
-            attendees = Attendee.get_conference_attendees(conference=conference, search_query=search_query)
-            
+            attendees = Attendee.filter_attendees(
+                search_query=search_query,
+                created_from=created_from,
+                created_to=created_to,
+                conference_id=conference_id,
+            )
+
             paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
             page = paginator.paginate_queryset(attendees, request)
-            
+
+            serializer = AttendeeSerializer(
+                page if page is not None else attendees,
+                many=True,
+            )
+
             if page is not None:
-                response_serializer = AttendeeResponseSerializer(page, many=True)
-                return paginator.get_paginated_response(response_serializer.data)
-            
-            response_serializer = AttendeeResponseSerializer(attendees, many=True)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
+                return paginator.get_paginated_response(serializer.data)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
-            logger.error(f"Error while retrieving conference attendees", exc_info=True)
+            logger.error(f"Error fetching attendees: {e}", exc_info=True)
             return Response(
                 {"detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["get"])
-    def request_ticket(self, request: HttpRequest):
-        if not request.user.is_authenticated:
-            return Response(data={"detail": "You are not authorized to request ticket for this conference"}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        user = cast(User, request.user)
-        conference_id = request.GET.get('conference_id')
-        
-        if conference_id is None:
-            return Response(data={"detail": "Conference id not provided"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        
+    # -----------------------------------
+    # RETRIEVE ATTENDEE
+    # -----------------------------------
+    def retrieve(self, request: Request, pk=None):
         try:
-            conference = Conference.get_conference_by_id(conference_id=conference_id)
-            if conference is None:
-                return Response(data={"detail": "Conference not found"}, status=status.HTTP_404_NOT_FOUND)
-            
-            if conference.is_conference_outdated():
-                return Response(data={"detail": "We regret to inform you that the conference has already ended."}, status=status.HTTP_403_FORBIDDEN)
-            
-            attendee = Attendee.get_attendee(participant=user, conference=conference)
-            
-            if attendee is None:
+            attendee = (
+                Attendee.objects.select_related("participant", "conference")
+                .filter(attendee_id=pk)
+                .first()
+            )
+
+            if not attendee:
                 return Response(
-                    data={
-                        "detail": "We were unable to verify your attendance. If you believe this is an error, please contact our support team for assistance."
-                    }, 
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"detail": "Attendee not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # process_issue_ticket.delay(attendee.attendee_id)
-            
+            return Response(
+                AttendeeSerializer(attendee).data,
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Retrieve error {pk}: {e}", exc_info=True)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # -----------------------------------
+    # UPDATE STATUS
+    # -----------------------------------
+    @action(detail=True, methods=["patch"], url_path="update-status")
+    def update_status(self, request: Request, pk=None):
+        serializer = UpdateAttendeeStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            attendee = Attendee.objects.filter(attendee_id=pk).first()
+
+            if not attendee:
+                return Response(
+                    {"detail": "Attendee not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            attendee.status = serializer.validated_data["status"]
+            attendee.save(update_fields=["status"])
+
+            return Response(
+                {
+                    "detail": "Status updated successfully",
+                    "attendee": AttendeeSerializer(attendee).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(f"Status update error {pk}: {e}", exc_info=True)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # -----------------------------------
+    # REQUEST TICKET
+    # -----------------------------------
+    @action(detail=False, methods=["get"], url_path="ticket/request")
+    def ticket_request(self, request: Request):
+        user = cast(User, request.user)
+        conference_id = request.query_params.get("conference_id")
+
+        if not conference_id:
+            return Response(
+                {"detail": "Conference id not provided"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            conference = Conference.get_conference_by_id(conference_id)
+
+            if not conference:
+                return Response(
+                    {"detail": "Conference not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if conference.is_conference_outdated():
+                return Response(
+                    {"detail": "Conference already ended"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            attendee = Attendee.get_attendee(
+                participant=user,
+                conference=conference,
+            )
+
+            if not attendee:
+                return Response(
+                    {
+                        "detail": "You are not registered as an attendee"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             qr_data = f"ID:{attendee.attendee_id},U:sche"
             qr_image = generate_qr_code(qr_data)
-            
-            qr_base64 = base64.b64encode(qr_image.read()).decode('utf-8')
-            
-            
+
+            qr_base64 = base64.b64encode(qr_image.read()).decode("utf-8")
+
             return Response(
-                data={
-                    "detail": "Ticket successfully generated.",
-                    "qr_code_base64": qr_base64
+                {
+                    "detail": "Ticket generated successfully",
+                    "qr_code_base64": qr_base64,
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
+
         except ValidationError as e:
-            logger.error(f"Validation error while issuing ticket for {user}: {e}", exc_info=True)
-            return Response(data={"detail": e.message}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": e.message},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         except Exception as e:
-            logger.error(f"An error occured while sending qr code to user - {user}: {e}", exc_info=True)
-            return Response(data={"detail": {str(e)}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  
+            logger.error(f"Ticket error {user}: {e}", exc_info=True)
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

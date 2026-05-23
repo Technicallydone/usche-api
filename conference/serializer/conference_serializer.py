@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from conference.models import Conference
 
 class ConferenceSerializer(serializers.Serializer):
     conference_id = serializers.UUIDField()
