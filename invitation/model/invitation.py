@@ -13,19 +13,22 @@ class Invitation(models.Model):
     invitation_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invitations")
     conference = models.ForeignKey(Conference, on_delete=models.CASCADE, related_name="invitations")
+
     invitation_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
     invited_on = models.DateTimeField(default=timezone.now)
     
+    daily_sent_count = models.IntegerField(default=0)
+
     class Meta:
         db_table = 'invitations'
         app_label = 'invitation'
-        
-    def __str__(self):
-        return f"Invitation for {self.user} to {self.conference}"
-    
+
     def mark_invitation_sent(self):
         self.invitation_sent = True
-        self.save(update_fields=["invitation_sent"])
+        self.sent_at = timezone.now()
+        self.save(update_fields=["invitation_sent", "sent_at"])
         
     @classmethod
     def get_conference_invitation(cls, conference: Conference) -> 'Invitation':

@@ -316,18 +316,6 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 MAIL_TOKEN = env('MAIL_TOKEN')
 MAIL_ENDPOINT = env('MAIL_ENDPOINT')
 
-CELERY_TASK_ROUTES = {
-    'authentication.tasks.process_reset_password_email': {'queue': 'high_priority'},
-    # 'user.tasks.send_deadline_reminder_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
-    # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
-    'invitation.tasks.send_low_invitation_email': {'queue': 'low_priority'},
-    'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
-    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
-}
-
-
 CELERY_TASK_DEFAULT_QUEUE = 'default'
 
 # CELERY_TASK_QUEUES = {
@@ -349,6 +337,17 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_TASK_DEFAULT_RETRY_DELAY = 5
 CELERY_TASK_MAX_RETRIES = 3
 
+CELERY_TASK_ROUTES = {
+    'authentication.tasks.process_reset_password_email': {'queue': 'high_priority'},
+    # 'user.tasks.send_deadline_reminder_high_priority_email': {'queue': 'high_priority'}, 
+    'user.tasks.send_high_priority_email': {'queue': 'high_priority'}, 
+    'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
+    # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
+    'invitation.tasks.send_pending_invitations_email': {'queue': 'low_priority'},
+    'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
+    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
+}
+
 CELERY_BEAT_SCHEDULE = {
     'send_high_priority_email': {
         'task': 'user.tasks.send_high_priority_email',  
@@ -358,11 +357,6 @@ CELERY_BEAT_SCHEDULE = {
     'send_low_priority_email': {
         'task': 'user.tasks.send_low_priority_email',  
         'schedule': timedelta(minutes=10), 
-        'options': {'queue': 'low_priority', 'priority': 0},
-    },
-    'send_low_invitation_email': {
-        'task': 'invitation.tasks.send_low_invitation_email',  
-        'schedule': timedelta(minutes=5), 
         'options': {'queue': 'low_priority', 'priority': 0},
     },
     'request_feedback_task': {
@@ -379,6 +373,11 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'attendee.tasks.sync_recent_logged_in_users_as_attendees',
         'schedule': timedelta(minutes=1),
         'options': {'queue': 'high_priority', 'priority': 10},
+    },
+        'send_pending_invitations_email': {
+        'task': 'invitation.tasks.send_pending_invitations_email',
+        'schedule': timedelta(minutes=5),
+        'options': {'queue': 'low_priority', 'priority': 0},
     },
 }
 

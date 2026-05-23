@@ -1,59 +1,143 @@
 import logging
-from conference.models import Conference
-from .models import Invitation
-from services.email.tasks import send_email_task
+from django.utils import timezone
 from celery import shared_task
 
+from django.db.models import Max
+
+from .models import Invitation
+from attendee.models import Attendee
+from services.email.tasks import send_email_task
 from utils.document_generator import generate_invitation_pdf
 
 logger = logging.getLogger(__name__)
 
-@shared_task()
-def send_low_invitation_email():
+
+def get_today_start():
+    now = timezone.now()
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def send_pending_invitations_email(self, daily_limit: int = 50):
     try:
-        # Get latest conference
-        conference = Conference.get_latest_conference()
-        if conference is None or conference.is_conference_outdated():
+        today_start = get_today_start()
+
+        # -----------------------------------
+        # GET LAST COUNT FOR TODAY
+        # -----------------------------------
+        last_sent = (
+            Invitation.objects
+            .filter(invitation_sent=True, sent_at__gte=today_start)
+            .aggregate(max_count=Max("daily_sent_count"))
+        )["max_count"] or 0
+
+        remaining_quota = daily_limit - last_sent
+
+        if remaining_quota <= 0:
+            logger.info("Daily invitation limit reached.")
             return
 
-        # Get invitation for the conference
-        invitation = Invitation.get_conference_invitation(conference=conference)
-        if invitation is None:
-            return
-
-        # Generate PDF for the invitation
-        pdf = generate_invitation_pdf(user=invitation.user, conference=conference)
-        if not pdf:
-            raise Exception("Failed to generate PDF for invitation")
-
-        # Prepare attachments
-        attachments = [
-            {
-                "filename": "Invitation_Letter.pdf",
-                "content": pdf.getvalue(),  # bytes
-                "mime_type": "application/pdf",
-            }
-        ]
-
-        # Queue email via send_email_task
-        send_email_task.delay(
-            subject=f"USChE-{conference.start_date.year} Participant Invitation Letter",
-            to=invitation.user.email,
-            greeting=f"Dear {invitation.user.title} {invitation.user.last_name},",
-            lines=[
-                "We are pleased to invite you to the upcoming event.",
-                f"Event Date: {conference.start_date}",
-                f"Venue: {conference.venue_name}"
-            ],
-            salutations=["Best regards,", "Event Organizing Team"],
-            footer_text="© 2026 USChE - University of Dodoma",
-            attachments=attachments
+        invitations = (
+            Invitation.objects.select_related("user", "conference")
+            .filter(invitation_sent=False)
+            .order_by("invited_on")[:remaining_quota]
         )
 
-        # Mark invitation as sent
-        invitation.mark_invitation_sent()
-        logger.info(f"Invitation email queued for {invitation.user.email}")
+        if not invitations:
+            logger.info("No pending invitations found.")
+            return
 
-    except Exception as e:
-        logger.error(f"Error while sending an invitation email: {e}", exc_info=True)
-        raise
+        sent_count = last_sent
+
+        for invitation in invitations:
+            try:
+                conference = invitation.conference
+                user = invitation.user
+
+                if conference.is_conference_outdated():
+                    continue
+
+                pdf = generate_invitation_pdf(
+                    user=user,
+                    conference=conference
+                )
+
+                if not pdf:
+                    logger.warning(f"PDF generation failed for {user.email}")
+                    continue
+
+                attachments = [
+                    {
+                        "filename": "Invitation_Letter.pdf",
+                        "content": pdf.getvalue(),
+                        "mime_type": "application/pdf",
+                    }
+                ]
+
+                send_email_task.delay(
+                    subject=f"USCHe-{conference.start_date.year} Official Invitation",
+                    to=user.email,
+                    greeting=f"Dear {user.title or ''} {user.last_name},",
+                    lines=[
+                        "We are pleased to formally invite you to the USChE Conference.",
+                        f"Conference Date: {conference.start_date}",
+                        f"Venue: {conference.venue_name}",
+                        "Please find your official invitation letter attached."
+                    ],
+                    salutations=[
+                        "Best regards,",
+                        "Conference Organizing Committee"
+                    ],
+                    footer_text="© 2026 USChE - University of Dodoma",
+                    attachments=attachments
+                )
+
+                # -----------------------------------
+                # INCREMENT DAILY COUNTER
+                # -----------------------------------
+                sent_count += 1
+
+                # -----------------------------------
+                # MARK INVITATION SENT + STORE COUNT
+                # -----------------------------------
+                invitation.daily_sent_count = sent_count
+                invitation.mark_invitation_sent()
+
+                # overwrite sent_at already handled in method
+                invitation.save(update_fields=["daily_sent_count"])
+
+                # -----------------------------------
+                # MARK ATTENDEE AS INVITED
+                # -----------------------------------
+                Attendee.objects.filter(
+                    conference=conference,
+                    participant=user
+                ).update(invitation_sent=True)
+
+                logger.info(
+                    f"[{sent_count}/{daily_limit}] Sent to {user.email}"
+                )
+
+                # stop exactly at limit
+                if sent_count >= daily_limit:
+                    logger.info("Reached daily limit (50). Stopping task.")
+                    break
+
+            except Exception as e:
+                logger.error(
+                    f"Failed processing invitation {invitation.invitation_id}: {e}",
+                    exc_info=True
+                )
+                continue
+
+        logger.info(
+            f"Batch completed. Final sent count: {sent_count}"
+        )
+
+    except Exception as exc:
+        logger.error("Invitation task failed", exc_info=True)
+        raise self.retry(exc=exc)

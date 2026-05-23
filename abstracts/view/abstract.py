@@ -19,6 +19,7 @@ from abstracts.serializers import (
     AbstractQuerySerializer,
     AbstractDecisionSerializer
 )
+from services.email.tasks import send_email_task
 from themes.models import MainTheme
 from themes.models import SubTheme
 from usche_app import settings
@@ -167,6 +168,21 @@ class AbstractViewSet(viewsets.ViewSet):
                 ]
 
                 AbstractAuthor.objects.bulk_create(abstract_authors)
+                
+                send_email_task.delay(
+                    subject="Abstract Submission Received - USChE Conference",
+                    to=user.email,
+                    greeting=f"Hello {user.first_name},",
+                    lines=[
+                        "Thank you for submitting your abstract to the USChE Conference.",
+                        "Your submission has been received successfully and is currently under review by the scientific committee.",
+                        "You will be notified once the review process has been completed.",
+                    ],
+                    salutations=["Best regards,", "The USChE Scientific Committee"],
+                    button_text="View Abstract",
+                    button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/abstracts/{abstract.abstract_id}",
+                    footer_text="© 2026 USChE - University of Dodoma",
+                )
 
             return Response(
                 {
@@ -200,6 +216,22 @@ class AbstractViewSet(viewsets.ViewSet):
                 abstract.save()
 
             logger.info(f"Abstract {pk} rejected by {request.user}")
+            
+            send_email_task.delay(
+                subject="Abstract Submission Update - USChE Conference",
+                to=abstract.user.email,
+                greeting=f"Hello {abstract.user.first_name},",
+                lines=[
+                    "Thank you for submitting your abstract to the USChE Conference.",
+                    "After careful review by the scientific committee, we regret to inform you that your abstract was not approved.",
+                    f"Reviewer Comment: {serializer.validated_data.get('comment') or 'No additional comment was provided.'}",
+                    "You may review the feedback and submit an improved version if submissions are still open.",
+                ],
+                salutations=["Best regards,", "The USChE Scientific Committee"],
+                button_text="View Abstract",
+                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/abstracts/{abstract.abstract_id}",
+                footer_text="© 2026 USChE - University of Dodoma",
+            )
 
             return Response(
                 {"detail": "Abstract rejected successfully"},
@@ -233,6 +265,21 @@ class AbstractViewSet(viewsets.ViewSet):
                 abstract.save()
 
             logger.info(f"Abstract {pk} approved by {request.user}")
+            
+            send_email_task.delay(
+                subject="Abstract Approved - USChE Conference",
+                to=abstract.user.email,
+                greeting=f"Hello {abstract.user.first_name},",
+                lines=[
+                    "We are pleased to inform you that your abstract has been approved by the USChE Scientific Committee.",
+                    "Congratulations on your successful submission.",
+                    "Please continue monitoring your dashboard for further conference updates and presentation guidelines.",
+                ],
+                salutations=["Best regards,", "The USChE Scientific Committee"],
+                button_text="View Abstract",
+                button_url=f"{settings.FRONTEND_BASE_URL}/dashboard/abstracts/{abstract.abstract_id}",
+                footer_text="© 2026 USChE - University of Dodoma",
+            )
 
             return Response(
                 {"detail": "Abstract approved successfully"},

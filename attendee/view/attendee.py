@@ -45,6 +45,7 @@ class AttendeeViewSet(viewsets.ViewSet):
         created_from = serializer.validated_data.get("created_from")
         created_to = serializer.validated_data.get("created_to")
         conference_id = serializer.validated_data.get("conference_id")
+        invitation_status = serializer.validated_data.get("invitation_status")
 
         try:
             attendees = Attendee.filter_attendees(
@@ -52,6 +53,7 @@ class AttendeeViewSet(viewsets.ViewSet):
                 created_from=created_from,
                 created_to=created_to,
                 conference_id=conference_id,
+                invitation_status=invitation_status,
             )
 
             paginator = PageNumberPagination()

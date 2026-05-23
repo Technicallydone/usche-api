@@ -99,6 +99,16 @@ class AppPermissionEnum(str, Enum):
     REJECT_PAYMENTS = 'permission.reject.payments'
     VERIFY_PAYMENTS = 'permission.verify.payments'
     DOWNLOAD_PAYMENT_SLIP = 'permission.payments.slip.download'
+    
+    # -----------------------------------
+    # INVITATIONS
+    # -----------------------------------
+    CREATE_INVITATION = 'permission.create.invitation'
+    READ_INVITATION = 'permission.view.invitation'
+    UPDATE_INVITATION = 'permission.update.invitation'
+    DELETE_INVITATION = 'permission.delete.invitation'
+    SEND_INVITATION = 'permission.send.invitation'
+    RESEND_INVITATION = 'permission.resend.invitation'
 
     @staticmethod
     def seed_permissions():

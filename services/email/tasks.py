@@ -1,6 +1,7 @@
 import logging
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
 from celery import shared_task, Task
 
 from .mail_template import EmailTemplate
@@ -21,6 +22,7 @@ def send_email_task(
     button_url: Optional[str] = None,
     footer_text: Optional[str] = None,
     html_message: Optional[str] = None,
+    attachments: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
 
     task_id = self.request.id
@@ -28,15 +30,20 @@ def send_email_task(
 
     lines = lines or []
     salutations = salutations or []
+    attachments = attachments or []
 
     logger.info(
         f"Email task started | "
         f"task_id={task_id} | "
         f"recipient={to} | "
-        f"subject='{subject}'"
+        f"subject='{subject}' | "
+        f"attachments={len(attachments)}"
     )
 
     try:
+        # -----------------------------------
+        # BUILD HTML IF NOT PROVIDED
+        # -----------------------------------
         if not html_message:
             template = EmailTemplate(subject=subject, to=to)
 
@@ -57,6 +64,9 @@ def send_email_task(
 
             html_message = template.build()
 
+        # -----------------------------------
+        # SEND EMAIL
+        # -----------------------------------
         provider = GmailProvider()
 
         provider.send(
@@ -64,6 +74,7 @@ def send_email_task(
             message="Please view this email in an HTML-compatible client.",
             recipients=[to],
             html_message=html_message,
+            attachments=attachments,
         )
 
         duration = round(time.monotonic() - start_time, 3)
