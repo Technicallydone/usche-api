@@ -1,2 +1,2 @@
 from .sponsor_serializer import SponsorSerializer
-from .create_sponsor_serializer import CreateSponsorSerializer
+from .create_sponsor_serializer import CreateSponsorSerializer, UpdateSponsorSerializer

@@ -6,14 +6,14 @@ from rest_framework.request import Request
 from rest_framework.exceptions import ValidationError
 import logging
 
+from abstracts.models import Abstract
 from themes.serializers import (
     CreateMainThemeSerializer,
     CreateSubThemeSerializer,
     UpdateMainThemeSerializer,
     BulkUpdateSubThemesSerializer
 )
-from themes.model.main_theme import MainTheme
-from themes.model.sub_theme import SubTheme
+from themes.models import SubTheme, MainTheme
 from user.enums.permission_enums import AppPermissionEnum
 from user.permissions import HasAppPermission
 
@@ -26,8 +26,53 @@ class ThemeViewSet(viewsets.ViewSet):
         'create': AppPermissionEnum.CREATE_MAIN_THEME.value,
         'create_sub_theme': AppPermissionEnum.CREATE_SUB_THEME.value,
         'update': AppPermissionEnum.UPDATE_MAIN_THEME.value,
-        'update_sub_theme': AppPermissionEnum.UPDATE_SUB_THEME.value
+        'update_sub_theme': AppPermissionEnum.UPDATE_SUB_THEME.value,
+        'delete_sub_theme': AppPermissionEnum.DELETE_SUB_THEME.value,
     }
+    
+    @action(detail=False, methods=["delete"], url_path="sub/delete/(?P<sub_theme_id>[^/.]+)")
+    def delete_sub_theme(self, request: Request, sub_theme_id=None):
+        try:
+            sub_theme = SubTheme.objects.get(sub_theme_id=sub_theme_id)
+
+            has_abstracts = Abstract.objects.filter(
+                sub_theme=sub_theme
+            ).exists()
+
+            if has_abstracts:
+                return Response(
+                    {
+                        "detail": (
+                            "This sub-theme cannot be deleted because "
+                            "it is already associated with abstracts."
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            sub_theme.delete()
+
+            return Response(
+                data={
+                    "detail": "Sub-theme deleted successfully",
+                    "id": sub_theme_id,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except SubTheme.DoesNotExist:
+            return Response(
+                {"detail": "Sub-theme not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        except Exception as e:
+            logger.exception("Failed to delete sub-theme")
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     @action(detail=False, methods=["put"], url_path="sub/update")
     def update_sub_theme(self, request: Request):

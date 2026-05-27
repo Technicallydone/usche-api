@@ -49,3 +49,18 @@ class UpdateSponsorSerializer(serializers.Serializer):
                     "At least one of website or contact_email must be provided."
                 )
         return data
+
+
+class UpdateSponsorSerializer(serializers.Serializer):
+    sponsor_id = serializers.UUIDField(required=True)
+
+    name = serializers.CharField(max_length=255, required=False)
+    website = serializers.URLField(required=False, allow_blank=True)
+    contact_email = serializers.EmailField(required=False, allow_blank=True)
+    priority = serializers.IntegerField(required=False)
+
+    logo = serializers.ImageField(
+        required=False,
+        allow_null=True,
+        validators=[validate_image_file]
+    )

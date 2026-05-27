@@ -109,6 +109,8 @@ class AppPermissionEnum(str, Enum):
     DELETE_INVITATION = 'permission.delete.invitation'
     SEND_INVITATION = 'permission.send.invitation'
     RESEND_INVITATION = 'permission.resend.invitation'
+    
+    NONE = 'none'
 
     @staticmethod
     def seed_permissions():

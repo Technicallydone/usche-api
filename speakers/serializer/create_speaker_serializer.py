@@ -49,3 +49,28 @@ class UpdateSpeakerSerializer(serializers.Serializer):
         required=False,
         validators=[validate_image_file]
     )
+
+
+
+class BulkUpdateSpeakerSerializer(serializers.Serializer):
+    speaker_id = serializers.UUIDField(required=True)
+
+    speaker_category = serializers.ChoiceField(
+        choices=SPEAKER_CATEGORY.choices(),
+        required=True
+    )
+
+    name = serializers.CharField(max_length=150, required=True)
+
+    title = serializers.ChoiceField(
+        choices=SPEAKER_TITLE.choices(),
+        required=True
+    )
+
+    specialization = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    organization = serializers.CharField(required=True)
+    role = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    biography = serializers.CharField(required=True)
+
+    speaker_image = serializers.FileField(required=False, allow_null=True, validators=[validate_image_file])
