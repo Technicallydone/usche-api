@@ -125,8 +125,6 @@ class SponsorViewSet(viewsets.ViewSet):
                 request.data
             )
 
-            print(raw_sponsors)
-
             serializer = UpdateSponsorSerializer(
                 data=raw_sponsors,
                 many=True

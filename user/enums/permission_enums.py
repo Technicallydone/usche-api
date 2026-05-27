@@ -110,6 +110,13 @@ class AppPermissionEnum(str, Enum):
     SEND_INVITATION = 'permission.send.invitation'
     RESEND_INVITATION = 'permission.resend.invitation'
     
+    # -----------------------------------
+    # SCHEDULE
+    # -----------------------------------
+    CREATE_SCHEDULE = 'permission.create.schedule'
+    UPDATE_SCHEDULE = 'permission.update.schedule'
+    DELETE_SCHEDULE = 'permission.delete.schedule'
+    
     NONE = 'none'
 
     @staticmethod

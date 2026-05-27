@@ -1,3 +1,4 @@
 from .conference_view import ConferenceViewSet
 from .conference_stats import ConferenceStatsViewSet
 from .conference_info_view import ConferenceInfoViewSet
+from .schedule_view import ScheduleViewSet

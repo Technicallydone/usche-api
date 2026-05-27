@@ -8,15 +8,21 @@ from .create_conference_serializer import (
     CreateRegistrationFeeSerializer,
     CreateTargetGroupSerializer,
     CreateBankAccountSerializer,
-    CreateScheduleDaySerializer,
-    CreateConferenceScheduleSerializer,
     UpdateConferenceSerializer,
     UpdateRegistrationFeeSerializer,
     UpdateTargetGroupSerializer,
     UpdateBankAccountSerializer,
-    UpdateScheduleDaySerializer,
-    UpdateConferenceScheduleSerializer,
     SVGUploadSerializer
+)
+
+from .schedule_day_serializer import (
+    CreateScheduleDaySerializer,
+    UpdateScheduleDaySerializer
+)
+
+from .schedule_serializer import (
+     CreateConferenceScheduleSerializer,
+     UpdateConferenceScheduleSerializer
 )
 
 from .pre_conference_slider import PreConferenceSliderResponseSerializer

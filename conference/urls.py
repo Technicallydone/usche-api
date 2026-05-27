@@ -4,8 +4,8 @@ from . import views
 
 router = DefaultRouter()
 
-# router.register(r'stats', views.ConferenceStatsViewSet, basename='stats')
 router.register(r'', views.ConferenceViewSet, basename='conference')
+router.register(r'schedule', views.ScheduleViewSet, basename='schedule')
 
 urlpatterns = [
     path('', include(router.urls)),
