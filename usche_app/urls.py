@@ -9,7 +9,7 @@ urlpatterns = [
     path('api/v1/accounts/', include('user.urls')),
     path('api/v1/conference/', include('conference.urls')),
     path('api/v1/speaker/', include('speakers.urls')),
-    path('api/v1/sponsor/', include('sponsors.urls')),
+    path('api/v1/sponsors/', include('sponsors.urls')),
     path('api/v1/themes/', include('themes.urls')),
     path('api/v1/abstracts/', include('abstracts.urls')),
     path('api/v1/payments/', include('payment.urls')),

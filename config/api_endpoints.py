@@ -20,7 +20,7 @@ class APIEndpoints:
     # =========================
     # SPONSORS
     # =========================
-    SPONSOR_LOGO = f"{BASE}/api/v1/sponsor/logo/sponsor-logo"
+    SPONSOR_LOGO = f"{BASE}/api/v1/sponsors/sponsor-logo"
 
     # =========================
     # ABSTRACTS

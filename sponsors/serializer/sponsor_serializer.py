@@ -12,4 +12,4 @@ class SponsorSerializer(serializers.Serializer):
     priority = serializers.IntegerField()
 
     def get_logo(self, obj: Sponsor):
-        return f"{APIEndpoints.SPEAKER_IMAGE}/{obj.sponsor_id}/"
+        return f"{APIEndpoints.SPONSOR_LOGO}/{obj.sponsor_id}/"
