@@ -280,7 +280,7 @@ class ScheduleViewSet(viewsets.ViewSet):
         serializer = CreateConferenceScheduleSerializer(
             data=request.data
         )
-
+        
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
@@ -345,7 +345,7 @@ class ScheduleViewSet(viewsets.ViewSet):
         serializer = UpdateConferenceScheduleSerializer(
             data=request.data
         )
-
+        
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
