@@ -2,6 +2,6 @@ from .payment_serializer import PaymentSerializer
 from .upload_payment_slip_serializer import UploadPaymentSlipSerializer
 from .conference_payment_report_erializr import ConferencePaymentReportSerializer
 from .stats_serializers import PaymentActivityStatsSerializer
-from .payment_query_serializer import PaymentQuerySerializer
+from .payment_query_serializer import PaymentQuerySerializer, MyPaymentQuerySerializer
 from .payment_decision_serializer import PaymentDecisionSerializer
 from .request_join_conference import RequestJoinConferenceSerializer

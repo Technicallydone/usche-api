@@ -17,7 +17,8 @@ from abstracts.serializers import (
     AbstractSubmissionSerializer,
     AbstractSerializer,
     AbstractQuerySerializer,
-    AbstractDecisionSerializer
+    AbstractDecisionSerializer,
+    MyAbstractQuerySerializer
 )
 from services.email.tasks import send_email_task
 from themes.models import MainTheme
@@ -37,7 +38,7 @@ class AbstractViewSet(viewsets.ViewSet):
 
     permission_mapping = {
         'list': AppPermissionEnum.READ_ABSTRACT_ALL.value,
-        'retrieve': AppPermissionEnum.READ_ABSTRACT_ALL.value,
+        'retrieve': [AppPermissionEnum.READ_ABSTRACT_ALL.value, AppPermissionEnum.READ_ABSTRACT_OWN.value],
         'read_document': AppPermissionEnum.READ_ABSTRACT.value,
         'mine': AppPermissionEnum.READ_ABSTRACT_OWN.value,
         'mine_by_id': AppPermissionEnum.READ_ABSTRACT_OWN.value,
@@ -78,7 +79,17 @@ class AbstractViewSet(viewsets.ViewSet):
         user = cast(User, request.user)
 
         try:
+            query_serializer = MyAbstractQuerySerializer(
+                data=request.query_params,
+            )
+            query_serializer.is_valid(raise_exception=True)
+
             abstracts = Abstract.objects.filter(user=user)
+
+            status_filter = query_serializer.validated_data.get("status")
+
+            if status_filter:
+                abstracts = abstracts.filter(status=status_filter)
 
             abstracts = abstracts.order_by("-created_at")
 
@@ -89,13 +100,24 @@ class AbstractViewSet(viewsets.ViewSet):
 
             if page is not None:
                 serializer = AbstractSerializer(page, many=True)
-                return paginator.get_paginated_response(serializer.data)
 
-            serializer = AbstractSerializer(abstracts, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+                return paginator.get_paginated_response(
+                    serializer.data
+                )
+
+            serializer = AbstractSerializer(
+                abstracts,
+                many=True,
+            )
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
 
         except Exception as e:
             logger.error(e, exc_info=True)
+
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

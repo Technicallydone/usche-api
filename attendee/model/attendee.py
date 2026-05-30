@@ -111,6 +111,7 @@ class Attendee(models.Model):
         created_from=None,
         created_to=None,
         invitation_status: str = None,
+        attendee_status = None
     ):
         filters = Q(participant__is_superuser=False)
 
@@ -121,6 +122,9 @@ class Attendee(models.Model):
                 Q(participant__middle_name__icontains=search_query) |
                 Q(participant__last_name__icontains=search_query)
             )
+        
+        if attendee_status:
+            filters &= Q(status=attendee_status)
 
         if conference_id:
             filters &= Q(conference__conference_id=conference_id)
@@ -136,6 +140,7 @@ class Attendee(models.Model):
 
         elif invitation_status == "not_sent":
             filters &= Q(invitation_sent=False)
+            
 
         return (
             cls.objects

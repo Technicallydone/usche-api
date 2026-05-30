@@ -27,3 +27,18 @@ class PaymentQuerySerializer(serializers.Serializer):
         if value in [None, ""]:
             return None
         return value.strip().lower()
+
+
+class MyPaymentQuerySerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=PaymentStatus.values(),
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+
+    def validate_status(self, value):
+        if value in [None, ""]:
+            return None
+
+        return value.strip()

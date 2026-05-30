@@ -19,7 +19,8 @@ from payment.serializers import (
     PaymentSerializer,
     PaymentQuerySerializer,
     PaymentDecisionSerializer,
-    RequestJoinConferenceSerializer
+    RequestJoinConferenceSerializer,
+    MyPaymentQuerySerializer
 )
 from payment.tasks import process_payment_approval
 from services.email.tasks import send_email_task
@@ -44,7 +45,7 @@ class PaymentViewSet(viewsets.ViewSet):
         'list': AppPermissionEnum.READ_PAYMENTS.value,
         "approved": AppPermissionEnum.READ_PAYMENTS.value,
         "pending_payments": AppPermissionEnum.READ_PAYMENTS.value,
-        "retrieve_payment": AppPermissionEnum.READ_OWN_PAYMENTS.value,
+        "retrieve_payment": [AppPermissionEnum.READ_OWN_PAYMENTS.value, AppPermissionEnum.READ_PAYMENTS],
         "upload_payment_slip": AppPermissionEnum.CREATE_PAYMENTS.value,
         "read_payment_slip": AppPermissionEnum.READ_PAYMENTS.value,
         "complete_payment": AppPermissionEnum.APPROVE_PAYMENTS.value,
@@ -124,9 +125,21 @@ class PaymentViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'], url_path='mine')
     def my_payments(self, request: Request):
         user = cast(User, request.user)
+        
+        query_serializer = MyPaymentQuerySerializer(
+                data=request.query_params
+            )
+        query_serializer.is_valid(raise_exception=True)
 
         try:
-            payments = Payment.objects.filter(user=user).order_by("-timestamp")
+            payments = Payment.objects.filter(user=user)
+
+            status_filter = query_serializer.validated_data.get("status")
+
+            if status_filter:
+                payments = payments.filter(status=status_filter)
+
+            payments = payments.order_by("-timestamp")
 
             paginator = PageNumberPagination()
             paginator.page_size_query_param = "page_size"
@@ -135,6 +148,7 @@ class PaymentViewSet(viewsets.ViewSet):
 
             if page is not None:
                 serializer = PaymentSerializer(page, many=True)
+
                 return paginator.get_paginated_response(serializer.data)
 
             serializer = PaymentSerializer(payments, many=True)

@@ -43,6 +43,9 @@ class AppPermissionEnum(str, Enum):
     # Statistics
     READ_CONFERENCE_STATS = 'permission.view.conference.stats'
     
+    # dashboard
+    VIEW_DASHBOARD = 'permission.view.dashobard'
+    
     SIGN_OUT = 'permission.sign.out'
     
     # Conference Management
