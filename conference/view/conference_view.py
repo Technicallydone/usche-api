@@ -43,6 +43,7 @@ from payment.model.payment import Payment
 from speakers.models import Speaker
 from sponsors.models import Sponsor
 from themes.models import MainTheme, SubTheme
+from usche_app import settings
 from user.enums.permission_enums import AppPermissionEnum
 from user.model.user_model import User
 from user.permissions import HasAppPermission
@@ -53,6 +54,8 @@ import logging
 from django.utils import timezone
 from django.utils import timezone
 from django.db.models import Count, Sum
+
+from utils.qr_code_generator import generate_qr_code
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,23 @@ class ConferenceViewSet(viewsets.ViewSet):
         'toggle_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value,
         'toggle_pre_conference_slider': AppPermissionEnum.UPDATE_CONFERENCE.value
     }
+    
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="qr-code",
+    )
+    def schedule_qr_code(self, request: Request, pk=None):
+        download_url = (
+            f"{settings.FRONTEND_BASE_URL}/conference/{pk}/schedule/download"
+        )
+
+        img_io = generate_qr_code(download_url)
+
+        return FileResponse(
+            img_io,
+            content_type="image/png",
+        )
     
     @action(detail=False, methods=["get"], url_path="list")
     def list_conferences(self, request: Request):

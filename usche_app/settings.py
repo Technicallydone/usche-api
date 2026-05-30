@@ -111,7 +111,8 @@ INSTALLED_APPS = [
     "payment",
     "invitation",
     "certificate",
-    "feedback"
+    "feedback",
+    "badge"
 ]
 
 AUTH_USER_MODEL = "user.User"
@@ -213,7 +214,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=2),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=200),
     "REFRESH_TOKEN_PATH_LIFETIME": timedelta(minutes=300),
     "ROTATE_REFRESH_TOKEN_PATHS": True,
     "BLACKLIST_AFTER_ROTATION": True,
@@ -346,6 +347,7 @@ CELERY_TASK_ROUTES = {
     'invitation.tasks.send_pending_invitations_email': {'queue': 'low_priority'},
     'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
     'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
+    'badge.tasks.generate_conference_badges_task': {'queue': 'high_priority'},
 }
 
 CELERY_BEAT_SCHEDULE = {

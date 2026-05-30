@@ -1,0 +1,1 @@
+from .badge_view import BadgeViewSet

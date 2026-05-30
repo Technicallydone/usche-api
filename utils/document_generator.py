@@ -18,6 +18,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
 from user.models import User
+from utils.qr_code_generator import generate_badge_qr
 
 logger = logging.getLogger(__name__)
 
@@ -236,4 +237,176 @@ def generate_certificate_pdf(user: User, conference: Conference, purpose=Certifi
 
     except Exception as e:
         logger.error(f"Error generating certificate PDF: {e}", exc_info=True)
+        return None
+
+
+def generate_badge_pdf(user: User, conference: Conference):
+    """
+    Generates attendee badge PDF with QR code.
+    Returns:
+        bytes | None
+    """
+
+    try:
+        image_snap_dir = Path.home() / "tmp/usche_badges"
+        image_snap_dir.mkdir(parents=True, exist_ok=True)
+
+        # --------------------------------------------------
+        # Copy logos
+        # --------------------------------------------------
+        for logo in ["udom_logo.png", "usche_logo.png", "uhuru_na_umoja.png"]:
+            src_logo = Path(settings.MEDIA_ROOT) / "usche" / logo
+            dst_logo = image_snap_dir / logo
+
+            if src_logo.exists():
+                shutil.copy(src_logo, dst_logo)
+
+        # --------------------------------------------------
+        # Background image
+        # --------------------------------------------------
+        background_path = None
+
+        if conference.id_badge_background:
+            src_bg = Path(settings.MEDIA_ROOT) / conference.id_badge_background.name
+            dst_bg = image_snap_dir / src_bg.name
+
+            if src_bg.exists():
+                shutil.copy(src_bg, dst_bg)
+                background_path = f"file://{dst_bg}"
+
+        # --------------------------------------------------
+        # QR CODE
+        # --------------------------------------------------
+        qr_io = generate_badge_qr(user, conference)
+
+        qr_path = image_snap_dir / f"{user.user_id}_qr.png"
+
+        with open(qr_path, "wb") as qr_file:
+            qr_file.write(qr_io.getvalue())
+
+        # --------------------------------------------------
+        # Images map
+        # --------------------------------------------------
+        images = {
+            "udom_logo": f"file://{image_snap_dir}/udom_logo.png",
+            "usche_logo": f"file://{image_snap_dir}/usche_logo.png",
+            "uhuru_na_umoja": f"file://{image_snap_dir}/uhuru_na_umoja.png",
+            "badge_background": background_path,
+            "qr_code": f"file://{qr_path}",
+        }
+
+        # --------------------------------------------------
+        # Fonts
+        # --------------------------------------------------
+        static_fonts = os.path.join(settings.STATIC_ROOT, "fonts")
+
+        font_face_overrides = f"""
+        <style>
+        @font-face {{
+            font-family: "Raleway";
+            src: url("file://{static_fonts}/Raleway/Raleway-VariableFont_wght.ttf")
+            format("truetype");
+        }}
+
+        @font-face {{
+            font-family: "Californian FB";
+            src: url("file://{static_fonts}/californian-fb/californian-fb.ttf")
+            format("truetype");
+        }}
+        </style>
+        """
+
+        # --------------------------------------------------
+        # Full name
+        # --------------------------------------------------
+        full_name = (
+            f"{user.title}. "
+            f"{user.first_name} "
+            f"{user.middle_name + ' ' if user.middle_name else ''}"
+            f"{user.last_name}"
+        )
+
+        # --------------------------------------------------
+        # Render HTML
+        # --------------------------------------------------
+        html_content = render_to_string(
+            "badge_template.html",
+            {
+                "font_face_overrides": font_face_overrides,
+                "images": images,
+                "conference_name": conference.conference_name,
+                "conference_start_date": conference.start_date,
+                "conference_end_date": conference.end_date,
+                "venue": conference.venue_name,
+                "full_name": full_name,
+                "affiliation": user.affiliation,
+                "role": user.role.name if user.role else "Participant",
+                "user_id": str(user.user_id),
+            },
+        )
+
+        # --------------------------------------------------
+        # Temp HTML
+        # --------------------------------------------------
+        temp_dir = settings.CHROMIUM_TEMP_DIR
+        os.makedirs(temp_dir, exist_ok=True)
+
+        temp_html_path = os.path.join(temp_dir, f"badge_{uuid.uuid4().hex}.html")
+
+        with open(temp_html_path, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        os.chmod(
+            temp_html_path,
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH,
+        )
+
+        # --------------------------------------------------
+        # Chrome setup (FIXED SCALING BUG)
+        # --------------------------------------------------
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--no-sandbox")
+
+        # ✅ CRITICAL FIXES
+        chrome_options.add_argument("--force-device-scale-factor=1")
+        chrome_options.add_argument("--high-dpi-support=1")
+
+        driver = webdriver.Chrome(options=chrome_options)
+
+        try:
+            driver.get(f"file://{temp_html_path}")
+            time.sleep(2)
+
+            # --------------------------------------------------
+            # CR80 EXACT SIZE FIX
+            # 85.6mm × 54mm = 3.375in × 2.125in
+            # --------------------------------------------------
+            pdf_data = driver.execute_cdp_cmd(
+                "Page.printToPDF",
+                {
+                    "printBackground": True,
+                    "landscape": False,
+
+                    # ✅ FIXED VALUES
+                    "paperWidth": 3.375,
+                    "paperHeight": 2.125,
+
+                    "marginTop": 0,
+                    "marginBottom": 0,
+                    "marginLeft": 0,
+                    "marginRight": 0,
+                },
+            )
+
+        finally:
+            driver.quit()
+            if os.path.exists(temp_html_path):
+                os.remove(temp_html_path)
+
+        return base64.b64decode(pdf_data["data"])
+
+    except Exception as e:
+        logger.error(f"Error generating badge PDF: {e}", exc_info=True)
         return None

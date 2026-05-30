@@ -1,0 +1,160 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Conference Badge</title>
+
+{{ font_face_overrides|safe }}
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Raleway", sans-serif;
+    background: #fff;
+}
+
+/* CR80 FIXED SIZE WRAPPER */
+.badge {
+    width: 85.6mm;
+    height: 54mm;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ✅ FIX: background layer prevents distortion */
+.badge-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.badge-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* content layer */
+.content {
+    position: relative;
+    z-index: 2;
+    padding: 6mm;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* header */
+.header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: center;
+}
+
+.header img {
+    height: 10mm;
+    object-fit: contain;
+}
+
+/* text */
+.government-text {
+    font-size: 7px;
+    font-weight: 700;
+    text-align: center;
+    margin-top: 2mm;
+}
+
+.conference-name {
+    font-size: 10px;
+    font-weight: 800;
+    text-align: center;
+    color: #0864cc;
+}
+
+/* photo */
+.photo-box {
+    width: 25mm;
+    height: 32mm;
+    margin: 0 auto;
+    border: 1px dashed #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* name */
+.participant-name {
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* role */
+.role {
+    margin: 0 auto;
+    padding: 2mm 6mm;
+    background: #0864cc;
+    color: white;
+    font-size: 9px;
+    border-radius: 20px;
+}
+
+/* footer */
+.footer {
+    font-size: 6px;
+    text-align: center;
+}
+</style>
+</head>
+
+<body>
+
+<div class="badge">
+
+    <!-- ✅ FIXED BACKGROUND LAYER -->
+    <div class="badge-bg">
+        <img src="{{ images.badge_background }}" />
+    </div>
+
+    <div class="content">
+
+        <div class="header">
+            <img src="{{ images.uhuru_na_umoja }}" />
+            <img src="{{ images.udom_logo }}" />
+            <img src="{{ images.usche_logo }}" />
+        </div>
+
+        <div class="government-text">
+            THE UNITED REPUBLIC OF TANZANIA<br>
+            MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY<br>
+            THE UNIVERSITY OF DODOMA
+        </div>
+
+        <div class="conference-name">
+            UDOM Scientific Conference on Health (USCHe)
+        </div>
+
+        <div class="photo-box">
+            PASSPORT PHOTO
+        </div>
+
+        <div class="participant-name">
+            {{ full_name }}
+        </div>
+
+        <div class="role">
+            {{ role }}
+        </div>
+
+        <div class="footer">
+            Official USCHe Conference Identification Badge
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

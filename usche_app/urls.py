@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/v1/invitations/', include('invitation.urls')),
     path('api/v1/certificate/', include('certificate.urls')),
     path('api/v1/feedback/', include('feedback.urls')),
+    path('api/v1/badges/', include('badge.urls')),
     
 ]
 

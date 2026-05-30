@@ -120,6 +120,12 @@ class AppPermissionEnum(str, Enum):
     UPDATE_SCHEDULE = 'permission.update.schedule'
     DELETE_SCHEDULE = 'permission.delete.schedule'
     
+    
+    CREATE_BADGE = 'permission.create.badge'
+    READ_BADGE = 'permission.view.badge'
+    UPDATE_BADGE = 'permission.update.badge'
+    DELETE_BADGE = 'permission.delete.badge'
+    
     NONE = 'none'
 
     @staticmethod

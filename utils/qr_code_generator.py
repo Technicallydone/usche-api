@@ -1,6 +1,18 @@
 import io
 import qrcode
 
+from conference.models import Conference
+from usche_app import settings
+from user.models import User
+
+def generate_badge_qr(user: User, conference: Conference):
+    verification_url = (
+        f"{settings.FRONTEND_BASE_URL}/accounts/users/verify-attendee/"
+        f"{user.user_id}?conference={conference.conference_id}"
+    )
+
+    return generate_qr_code(verification_url)
+
 
 def generate_qr_code(data: str) -> io.BytesIO:
     """
