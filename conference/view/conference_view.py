@@ -64,7 +64,7 @@ class ConferenceViewSet(viewsets.ViewSet):
     
     permission_mapping = {
         'list': AppPermissionEnum.READ_CONFERENCE.value,
-        'retrieve': AppPermissionEnum.READ_CONFERENCE.value,
+        # 'retrieve': AppPermissionEnum.READ_CONFERENCE.value,
         'retrieve_certificat_template': AppPermissionEnum.READ_CONFERENCE.value,
         'retrieve_id_badge_template': AppPermissionEnum.READ_CONFERENCE.value,
         'create': AppPermissionEnum.CREATE_CONFERENCE.value,

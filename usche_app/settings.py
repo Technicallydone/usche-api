@@ -76,6 +76,7 @@ CORS_ALLOWED_ORIGINS = [
     "https://usche.ac.tz",
     "https://www.usche.ac.tz",
     "http://localhost:5173",
+    "http://localhost:5174",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
