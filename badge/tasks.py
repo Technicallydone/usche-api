@@ -14,7 +14,7 @@ from django.core.files import File
 from attendee.models import Attendee
 from badge.models import Badge, BadgeGenerationJob
 from usche_app import settings
-from utils.document_generator import generate_badge_pdf
+from utils.generate_badge import generate_badge_pdf
 
 logger = logging.getLogger(__name__)
 

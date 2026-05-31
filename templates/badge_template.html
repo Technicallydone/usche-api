@@ -1,160 +1,272 @@
-{% load static %}
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Conference Badge</title>
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ full_name }} - Conference Badge</title>
+    {{ font_face_overrides|safe }}
+    <style>
+      /* ---------- A6 vertical: 105mm x 148mm ---------- */
+      @page {
+        size: 105mm 148mm;
+        margin: 0;
+      }
 
-{{ font_face_overrides|safe }}
+      * { box-sizing: border-box; margin: 0; padding: 0; }
 
-<style>
-html, body {
-    margin: 0;
-    padding: 0;
-    font-family: "Raleway", sans-serif;
-    background: #fff;
-}
+      html, body {
+        width: 105mm;
+        height: 148mm;
+        font-family: "Raleway", "Helvetica Neue", Arial, sans-serif;
+        color: #1a2a44;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
 
-/* CR80 FIXED SIZE WRAPPER */
-.badge {
-    width: 85.6mm;
-    height: 54mm;
-    position: relative;
-    overflow: hidden;
-}
+      /* ---------- Outer badge ---------- */
+      .badge {
+        position: relative;
+        width: 105mm;
+        height: 148mm;
+        background: #ffffff;
+        {% if images.badge_background %}
+        background-image: url("{{ images.badge_background }}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        {% endif %}
+        overflow: hidden;
+      }
 
-/* ✅ FIX: background layer prevents distortion */
-.badge-bg {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-}
+      /* Blue side bands (left + right) */
+      .band {
+        position: absolute;
+        top: 0; bottom: 0;
+        width: 6mm;
+        background: #1a3a73;
+      }
+      .band.left  { left: 0; }
+      .band.right { right: 0; }
 
-.badge-bg img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+      /* Top + bottom blue bars */
+      .bar {
+        position: absolute;
+        left: 6mm; right: 6mm;
+        height: 4mm;
+        background: #1a3a73;
+      }
+      .bar.top    { top: 0; }
+      .bar.bottom { bottom: 0; }
 
-/* content layer */
-.content {
-    position: relative;
-    z-index: 2;
-    padding: 6mm;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-}
+      /* ---------- Content wrapper ---------- */
+      .content {
+        position: absolute;
+        top: 6mm; left: 6mm; right: 6mm; bottom: 6mm;
+        padding: 6mm 6mm 5mm;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
 
-/* header */
-.header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    align-items: center;
-}
+      /* ---------- Logos row ---------- */
+      .logos {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6mm;
+        margin-bottom: 4mm;
+      }
+      .logos img { height: 14mm; width: auto; object-fit: contain; }
 
-.header img {
-    height: 10mm;
-    object-fit: contain;
-}
+      /* ---------- Conference title ---------- */
+      .conference-title {
+        font-size: 11pt;
+        font-weight: 700;
+        color: #1a3a73;
+        line-height: 1.2;
+        margin-bottom: 5mm;
+      }
 
-/* text */
-.government-text {
-    font-size: 7px;
-    font-weight: 700;
-    text-align: center;
-    margin-top: 2mm;
-}
+      /* ---------- Attendee name ---------- */
+      .full-name {
+        font-family: "Californian FB", "Raleway", serif;
+        font-size: 20pt;
+        font-weight: 800;
+        color: #0f1e3d;
+        letter-spacing: 0.5px;
+        line-height: 1.05;
+        text-transform: uppercase;
+        margin-bottom: 2.5mm;
+      }
 
-.conference-name {
-    font-size: 10px;
-    font-weight: 800;
-    text-align: center;
-    color: #0864cc;
-}
+      .affiliation {
+        font-size: 9pt;
+        color: #4a5468;
+        line-height: 1.3;
+        margin-bottom: 4mm;
+      }
 
-/* photo */
-.photo-box {
-    width: 25mm;
-    height: 32mm;
-    margin: 0 auto;
-    border: 1px dashed #666;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+      /* ---------- Role pill ---------- */
+      .role {
+        display: inline-block;
+        background: #8b1e1e;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 11pt;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 2mm 8mm;
+        border-radius: 999px;
+        margin-bottom: 5mm;
+      }
 
-/* name */
-.participant-name {
-    font-size: 14px;
-    font-weight: bold;
-    text-align: center;
-}
+      /* ---------- Conference details panel ---------- */
+      .details {
+        width: 100%;
+        border: 1px solid #c9d1de;
+        background: rgba(255,255,255,0.9);
+        border-radius: 2mm;
+        padding: 3mm 3mm 3.5mm;
+        margin-bottom: 4mm;
+      }
+      .details-title {
+        font-size: 9pt;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: #1a3a73;
+        margin-bottom: 1.5mm;
+      }
+      .details-theme {
+        font-size: 8.5pt;
+        font-style: italic;
+        color: #1a3a73;
+        margin-bottom: 2mm;
+      }
+      .details-dates {
+        font-size: 10pt;
+        font-weight: 700;
+        color: #1a3a73;
+      }
+      .details-venue {
+        font-size: 8.5pt;
+        color: #4a5468;
+        margin-top: 0.5mm;
+      }
 
-/* role */
-.role {
-    margin: 0 auto;
-    padding: 2mm 6mm;
-    background: #0864cc;
-    color: white;
-    font-size: 9px;
-    border-radius: 20px;
-}
+      /* ---------- QR + registration ---------- */
+      .qr-row {
+        margin-top: auto;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 3mm;
+      }
+      .qr-row img {
+        width: 22mm;
+        height: 22mm;
+        object-fit: contain;
+      }
+      .reg {
+        text-align: left;
+        font-size: 8pt;
+        color: #4a5468;
+        line-height: 1.3;
+      }
+      .reg .label {
+        font-weight: 700;
+        color: #1a3a73;
+        letter-spacing: 1px;
+      }
+      .reg .id {
+        font-family: "Courier New", monospace;
+        font-weight: 700;
+        color: #0f1e3d;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="badge">
+      <div class="band left"></div>
+      <div class="band right"></div>
+      <div class="bar top"></div>
+      <div class="bar bottom"></div>
 
-/* footer */
-.footer {
-    font-size: 6px;
-    text-align: center;
-}
-</style>
-</head>
+      <div class="content">
+    <div class="logos">
+        {% if images.udom_logo %}
+            <img
+                src="{{ images.udom_logo }}"
+                alt="UDOM"
+            />
+        {% endif %}
 
-<body>
-
-<div class="badge">
-
-    <!-- ✅ FIXED BACKGROUND LAYER -->
-    <div class="badge-bg">
-        <img src="{{ images.badge_background }}" />
+        {% if images.usche_logo %}
+            <img
+                src="{{ images.usche_logo }}"
+                alt="USCHe"
+            />
+        {% endif %}
     </div>
 
-    <div class="content">
+    <div class="conference-title">
+        {{ conference_name }}
+    </div>
 
-        <div class="header">
-            <img src="{{ images.uhuru_na_umoja }}" />
-            <img src="{{ images.udom_logo }}" />
-            <img src="{{ images.usche_logo }}" />
+    <div class="full-name">
+        {{ full_name }}
+    </div>
+
+    <div class="affiliation">
+        {% if department %}
+            {{ department }}
+            {% if affiliation %}
+                , {{ affiliation }}
+            {% endif %}
+        {% else %}
+            {{ affiliation }}
+        {% endif %}
+    </div>
+
+    <div class="role">
+        {{ role }}
+    </div>
+
+    <div class="details">
+        <div class="details-title">CONFERENCE DETAILS</div>
+
+        {% if theme %}
+            <div class="details-theme">
+                THEME: {{ theme }}
+            </div>
+        {% endif %}
+
+        <div class="details-dates">
+            {{ conference_start_date|date:"F j" }} -
+            {{ conference_end_date|date:"j, Y" }}
         </div>
 
-        <div class="government-text">
-            THE UNITED REPUBLIC OF TANZANIA<br>
-            MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY<br>
-            THE UNIVERSITY OF DODOMA
+        <div class="details-venue">
+            {{ venue }}
         </div>
+    </div>
 
-        <div class="conference-name">
-            UDOM Scientific Conference on Health (USCHe)
+    <div class="qr-row">
+        {% if images.qr_code %}
+            <img
+                src="{{ images.qr_code }}"
+                alt="QR"
+            />
+        {% endif %}
+
+        <div class="reg">
+            <div class="label">REGISTRATION ID:</div>
+            <div class="id">
+                {{ registration_id }}
+            </div>
         </div>
-
-        <div class="photo-box">
-            PASSPORT PHOTO
-        </div>
-
-        <div class="participant-name">
-            {{ full_name }}
-        </div>
-
-        <div class="role">
-            {{ role }}
-        </div>
-
-        <div class="footer">
-            Official USCHe Conference Identification Badge
-        </div>
-
     </div>
 </div>
-
-</body>
+    </div>
+  </body>
 </html>
