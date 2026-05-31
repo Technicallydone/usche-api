@@ -317,73 +317,120 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 MAIL_TOKEN = env('MAIL_TOKEN')
 MAIL_ENDPOINT = env('MAIL_ENDPOINT')
 
-CELERY_TASK_DEFAULT_QUEUE = 'default'
 
-# CELERY_TASK_QUEUES = {
-#     'high_priority': {'exchange': 'high_priority', 'routing_key': 'high_priority'},
-#     'low_priority': {'exchange': 'low_priority', 'routing_key': 'low_priority'},
-#     'default': {'exchange': 'default', 'routing_key': 'default'},
-# }
+# --------------------------------------------------
+# CELERY
+# --------------------------------------------------
 
-CELERY_TASK_QUEUES = (
-    Queue('high_priority', exchange='high_priority', routing_key='high_priority'),
-    Queue('low_priority', exchange='low_priority', routing_key='low_priority'),
-    Queue('default', exchange='default', routing_key='default'),
-)
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
 
-CELERY_BROKER_URL = env('CELERY_BROKER_URL') 
-CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND')
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+
+CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_DEFAULT_RETRY_DELAY = 5
 CELERY_TASK_MAX_RETRIES = 3
 
+# --------------------------------------------------
+# QUEUES
+# --------------------------------------------------
+
+CELERY_TASK_QUEUES = (
+    Queue(
+        "high_priority",
+        exchange="high_priority",
+        routing_key="high_priority",
+    ),
+    Queue(
+        "low_priority",
+        exchange="low_priority",
+        routing_key="low_priority",
+    ),
+    Queue(
+        "default",
+        exchange="default",
+        routing_key="default",
+    ),
+)
+
+# --------------------------------------------------
+# ROUTES
+# API-triggered tasks
+# --------------------------------------------------
+
 CELERY_TASK_ROUTES = {
-    'authentication.tasks.process_reset_password_email': {'queue': 'high_priority'},
-    # 'user.tasks.send_deadline_reminder_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_high_priority_email': {'queue': 'high_priority'}, 
-    'user.tasks.send_low_priority_email': {'queue': 'low_priority'}, 
-    # 'user.tasks.send_registration_payment_reminder_low_priority_email': {'queue': 'low_priority'},
-    'invitation.tasks.send_pending_invitations_email': {'queue': 'low_priority'},
-    'feedback.tasks.request_feedback_task': {'queue': 'high_priority'},
-    'certificate.tasks.generate_certificates_for_conference_task': {'queue': 'high_priority'},
-    'badge.tasks.generate_conference_badges_task': {'queue': 'high_priority'},
+    # Badge generation
+    "badge.tasks.generate_conference_badges_task": {
+        "queue": "high_priority",
+    },
+
+    # Uncomment when certificate generation is enabled
+    # "certificate.tasks.generate_certificates_for_conference_task": {
+    #     "queue": "high_priority",
+    # },
 }
+
+# --------------------------------------------------
+# CELERY BEAT
+# --------------------------------------------------
 
 CELERY_BEAT_SCHEDULE = {
-    'send_high_priority_email': {
-        'task': 'user.tasks.send_high_priority_email',  
-        'schedule': timedelta(minutes=1),
-        'options': {'queue': 'high_priority', 'priority': 10},
+    "send_high_priority_email": {
+        "task": "user.tasks.send_high_priority_email",
+        "schedule": timedelta(minutes=1),
+        "options": {
+            "queue": "high_priority",
+            "priority": 10,
+        },
     },
-    'send_low_priority_email': {
-        'task': 'user.tasks.send_low_priority_email',  
-        'schedule': timedelta(minutes=10), 
-        'options': {'queue': 'low_priority', 'priority': 0},
+
+    "send_low_priority_email": {
+        "task": "user.tasks.send_low_priority_email",
+        "schedule": timedelta(minutes=10),
+        "options": {
+            "queue": "low_priority",
+            "priority": 0,
+        },
     },
-    'request_feedback_task': {
-        'task': 'feedback.tasks.request_feedback_task',
-        'schedule': timedelta(days=30),
-        'options': {'queue': 'high_priority', 'priority': 10},
+
+    # "request_feedback_task": {
+    #     "task": "feedback.tasks.request_feedback_task",
+    #     "schedule": timedelta(hours=24),
+    #     "options": {
+    #         "queue": "high_priority",
+    #         "priority": 10,
+    #     },
+    # },
+
+    "sync_recent_logged_in_users_as_attendees": {
+        "task": "attendee.tasks.sync_recent_logged_in_users_as_attendees",
+        "schedule": timedelta(minutes=1),
+        "options": {
+            "queue": "high_priority",
+            "priority": 10,
+        },
     },
-    'generate_certificates_for_conference_task': {
-        'task': 'certificate.tasks.generate_certificates_for_conference_task',
-        'schedule': timedelta(minutes=5),
-        'options': {'queue': 'high_priority', 'priority': 10},
+
+    "send_pending_invitations_email": {
+        "task": "invitation.tasks.send_pending_invitations_email",
+        "schedule": timedelta(minutes=5),
+        "options": {
+            "queue": "low_priority",
+            "priority": 0,
+        },
     },
-    'sync_recent_logged_in_users_as_attendees': {
-        'task': 'attendee.tasks.sync_recent_logged_in_users_as_attendees',
-        'schedule': timedelta(minutes=1),
-        'options': {'queue': 'high_priority', 'priority': 10},
-    },
-        'send_pending_invitations_email': {
-        'task': 'invitation.tasks.send_pending_invitations_email',
-        'schedule': timedelta(minutes=5),
-        'options': {'queue': 'low_priority', 'priority': 0},
+
+    "send_deadline_reminder_high_priority_email": {
+        "task": "conference.tasks.send_deadline_reminder_high_priority_email",
+        "schedule": timedelta(hours=24),
+        "options": {
+            "queue": "high_priority",
+            "priority": 10,
+        },
     },
 }
-
 
 # Proxy configuration
 USE_X_FORWARDED_HOST = True
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

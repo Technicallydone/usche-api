@@ -1,21 +1,16 @@
 from datetime import timedelta
-from typing import Dict
 from celery import shared_task
 from django.db import transaction
 from django.core.mail import BadHeaderError
 from conference.model import Conference
 from invitation.models import Invitation
 from services.email.tasks import send_email_task
-from settings.models import Settings
 from usche_app import settings
 from user.models import User
-from utils.beem_sms import BeemSMSClient
-from utils.send_email import  send_activation_email, send_reminder_email
 import logging
 from django.utils.timezone import now
 from django.utils import timezone
 from utils.access_token import generate_token
-from utils.uniode_strip import strip_unicode
 
 
 
@@ -87,8 +82,6 @@ def send_low_priority_email():
 
 @shared_task()
 def send_high_priority_email():
-    sms = BeemSMSClient()
-
     try:
         with transaction.atomic():
 
@@ -132,30 +125,6 @@ def send_high_priority_email():
                 footer_text="© 2026 USChE - University of Dodoma",
             )
 
-            # -----------------------------------
-            # SEND SMS
-            # -----------------------------------
-            try:
-                message = (
-                    f"Dear {user.title or ''} {user.last_name},\n\n"
-                    "Your registration is successful. "
-                    "Please activate your account using the link sent to your email.\n\n"
-                    f"{activation_url}"
-                )
-
-                sms_response = sms.send_sms(
-                    message=strip_unicode(message),
-                    recipients=[user.phone_number]
-                )
-
-                logger.info(f"SMS sent successfully: {sms_response}")
-
-            except Exception as sms_error:
-                logger.error(
-                    f"SMS sending failed: {str(sms_error)}",
-                    exc_info=True
-                )
-
     except Exception as e:
         logger.error(
             f"High priority email task failed: {str(e)}",
@@ -163,7 +132,6 @@ def send_high_priority_email():
         )
         raise
         
-
     
 @shared_task
 def send_deadline_reminder_high_priority_email():
@@ -171,80 +139,104 @@ def send_deadline_reminder_high_priority_email():
         with transaction.atomic():
             conference = Conference.get_latest_conference()
 
+            if not conference:
+                return
+
             if conference.is_conference_outdated():
                 return
 
-            abstract_submission_deadline = conference.abstract_submission_deadline
+            abstract_submission_deadline = (
+                conference.abstract_submission_deadline
+            )
+
             now = timezone.now()
 
-            days_until_deadline = (abstract_submission_deadline.date() - now.date()).days
+            days_until_deadline = (
+                abstract_submission_deadline.date() - now.date()
+            ).days
 
             if not 0 <= days_until_deadline <= 14:
                 return
 
-            users_to_remind = Invitation.objects.filter(
-                conference=conference,
-                user__abstracts__isnull=True
-            ).values_list('user', flat=True).distinct()
+            users_to_remind = (
+                Invitation.objects
+                .filter(
+                    conference=conference,
+                    user__abstracts__isnull=True,
+                )
+                .values_list("user", flat=True)
+                .distinct()
+            )
 
+            users_to_notify = (
+                User.objects
+                .filter(user_id__in=users_to_remind)
+                .distinct()
+            )
 
-            users_to_notify = User.objects.filter(user_id__in=users_to_remind).distinct()
+            if not users_to_notify.exists():
+                logger.info("No users require abstract deadline reminders.")
+                return
+
+            abstract_url = (
+                f"{settings.FRONTEND_BASE_URL}/dashboard/abstract"
+            )
 
             for user in users_to_notify:
-                logger.info(f"Sending reminder email to: {user.email}")
-                send_reminder_email(user, conference)
-
-    except BadHeaderError as bhe:
-        logger.error(f"Email sending failed due to BadHeaderError: {str(bhe)}", exc_info=True)
-
-    except Exception as e:
-        logger.error(f"Email sending failed: {str(e)}", exc_info=True)
-        
-        
-@shared_task
-def send_registration_payment_reminder_low_priority_email():
-    try:
-        sms = BeemSMSClient()
-
-        with transaction.atomic():
-            # Load required settings and latest conference info
-            support = Settings.get_contact_support()
-            contact_number = support.phone_support
-            conference = Conference.get_latest_conference()
-            conference_date = conference.start_date
-
-            # URLs
-            base_url = settings.FRONTEND_BASE_URL
-            abstract_link_attendee = f"{base_url}/dashboard/abstract"
-            abstract_link_other = f"{base_url}/panel/submit-abstract"
-            payment_link = f"{base_url}/dashboard/conference/join"
-
-            # Get users who have neither payment nor abstract
-            users = User.users_without_abstract_and_payment(conference=conference)
-
-            for user in users:
-                message = (
-                    f"Dear {user.title} {user.last_name},\n\n"
-                    f"Reminder: USCHe 2025 starts on {conference_date}. "
-                    f"Pay and upload slip at: {payment_link}\n\n"
-                    f"Questions? Call {contact_number}."
+                logger.info(
+                    f"Queueing abstract reminder email to: {user.email}"
                 )
 
-
-                # Send email
-                # send_registration_payment_reminder_email(user, conference)
-
-                # Send SMS
-                try:
-                    response = sms.send_sms(
-                        message=strip_unicode(message).strip(),
-                        recipients=[user.phone_number]
-                    )
-                    logger.info(f"SMS sent to {user.phone_number}: {response}")
-                except Exception as sms_error:
-                    logger.error(f"Failed to send SMS to {user.phone_number}: {str(sms_error)}", exc_info=True)
+                send_email_task.delay(
+                    subject=(
+                        f"Abstract Submission Reminder - "
+                        f"{conference.conference_name}"
+                    ),
+                    to=user.email,
+                    greeting=(
+                        f"Dear {user.title or ''} "
+                        f"{user.last_name},"
+                    ).strip(),
+                    lines=[
+                        (
+                            "This is a friendly reminder that the "
+                            "abstract submission deadline is approaching."
+                        ),
+                        (
+                            "We encourage you to complete and submit "
+                            "your abstract before the deadline."
+                        ),
+                        (
+                            f"Submission Deadline: "
+                            f"{abstract_submission_deadline.strftime('%B %d, %Y')}"
+                        ),
+                        (
+                            f"Conference Date: "
+                            f"{conference.start_date.strftime('%B %d, %Y')}"
+                        ),
+                        (
+                            f"Venue: {conference.venue_name}"
+                        ),
+                    ],
+                    button_text="Submit Abstract",
+                    button_url=abstract_url,
+                    salutations=[
+                        "Best regards,",
+                        "USChE Organizing Committee",
+                    ],
+                    footer_text="© 2026 USChE - University of Dodoma",
+                )
 
     except BadHeaderError as bhe:
-        logger.error("Email failed due to BadHeaderError", exc_info=True)
+        logger.error(
+            f"Email sending failed due to BadHeaderError: {str(bhe)}",
+            exc_info=True,
+        )
+
     except Exception as e:
-        logger.error("Reminder task failed", exc_info=True)
+        logger.error(
+            f"Email sending failed: {str(e)}",
+            exc_info=True,
+        )
+        raise
+

@@ -6,7 +6,7 @@ import logging
 
 from pathlib import Path
 
-from celery import shared_task
+from celery import Task, shared_task
 from django.db import transaction
 from django.utils import timezone
 from django.core.files import File
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
     retry_backoff=5,
     retry_kwargs={"max_retries": 5},
 )
-def generate_conference_badges_task(self, job_id: str):
+def generate_conference_badges_task(self: Task, job_id: str):
     """
     Generates badges for all attendees in a conference
     and stores them in a single ZIP file.

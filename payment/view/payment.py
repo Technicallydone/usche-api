@@ -22,7 +22,6 @@ from payment.serializers import (
     RequestJoinConferenceSerializer,
     MyPaymentQuerySerializer
 )
-from payment.tasks import process_payment_approval
 from services.email.tasks import send_email_task
 from usche_app import settings
 from django.db import transaction
@@ -30,8 +29,6 @@ from django.db import transaction
 from user.enums.permission_enums import AppPermissionEnum
 from user.models import User
 from user.permissions import HasAppPermission
-from utils.beem_sms import BeemSMSClient
-from utils.send_email import send_payment_rejection_email
 from rest_framework.pagination import PageNumberPagination
 from django.shortcuts import get_object_or_404
 
