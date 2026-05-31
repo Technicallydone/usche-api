@@ -53,7 +53,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
         JWTAuthentication,
     ]
     
-    @action(detail=False, methods=['post'], url_path='change-password')
+    @action(detail=False, methods=['post'], url_path='accounts/reset-password')
     def change_password(self, request: Request):
         
         request_serializer = RequestChangePasswordSerializer(data=request.data)
@@ -120,7 +120,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
             logger.exception("Error while activating user.", exc_info=e)
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @action(detail=False, methods=['post'], url_path='forgot-password')
+    @action(detail=False, methods=['post'], url_path='accounts/forgot-password')
     def forgot_password(self, request: Request):
         serializer = ForgotPasswordRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -165,7 +165,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-    @action(detail=False, methods=['post'], url_path='new-activation-email')
+    @action(detail=False, methods=['post'], url_path='accounts/request-activation-link')
     def new_activation_email(self, request: Request):
         """
         Resend activation email.
@@ -202,7 +202,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 ],
                 salutations=["Best regards,", "The USChE Team"],
                 button_text="Activate Account",
-                button_url=f"{settings.FRONTEND_BASE_URL}/activate/{token}",
+                button_url=f"{settings.FRONTEND_BASE_URL}/auth/activate/{token}",
                 footer_text="© 2026 USChE - University of Dodoma"
             )
 
@@ -226,7 +226,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
             return Response({"error_code": "INTERNAL_SERVER_ERROR", "detail": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'], url_path='accounts/activate')
-    def activate_account(self, request):
+    def activate_account(self, request: Request):
         """
         Activate the user account by verifying the activation token.
         """
@@ -359,7 +359,7 @@ class AuthenticationViewSet(viewsets.ViewSet):
                     ]
                     salutations = ["Best regards,", "The USChE Team"]
                     button_text = "Activate Account"
-                    button_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
+                    button_url = f"{settings.FRONTEND_BASE_URL}/auth/activate/{token}"
                     footer_text = "© 2026 USChE - University of Dodoma"
 
                     send_email_task.delay(
