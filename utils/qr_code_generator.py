@@ -7,8 +7,9 @@ from user.models import User
 
 def generate_badge_qr(user: User, conference: Conference):
     verification_url = (
-        f"{settings.FRONTEND_BASE_URL}/accounts/users/verify-attendee/"
-        f"{user.user_id}?conference={conference.conference_id}"
+        f"{settings.FRONTEND_BASE_URL}/attendance/scanner"
+        f"?user_id={user.user_id}"
+        f"&conference_id={conference.conference_id}"
     )
 
     return generate_qr_code(verification_url)

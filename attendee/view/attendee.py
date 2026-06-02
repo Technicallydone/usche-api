@@ -9,6 +9,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from attendee.enums.attendee_status import AttendeeStatus
 from attendee.models import Attendee
 from attendee.serializers import (
     AttendeeSerializer,
@@ -32,7 +33,90 @@ class AttendeeViewSet(viewsets.ViewSet):
         "retrieve": AppPermissionEnum.READ_ATTENDEES.value,
         "update_status": AppPermissionEnum.UPDATE_ATTENDEE_STATUS.value,
         "ticket_request": AppPermissionEnum.REQUEST_JOIN_TICKET.value,
+        "verify-attendee": AppPermissionEnum.VERIFY_ATTENDEE.value,
     }
+    
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="verify-attendee"
+    )
+    def verify_attendee(self, request: Request):
+        user_id = request.query_params.get("user_id")
+        conference_id = request.query_params.get("conference_id")
+
+        if not user_id:
+            return Response(
+                {"detail": "User ID is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not conference_id:
+            return Response(
+                {"detail": "Conference ID is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            conference = Conference.objects.filter(
+                conference_id=conference_id
+            ).first()
+
+            if not conference:
+                return Response(
+                    {"detail": "Conference not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            attendee = (
+                Attendee.objects
+                .select_related(
+                    "participant",
+                    "conference",
+                )
+                .filter(
+                    participant_id=user_id,
+                    conference_id=conference_id,
+                )
+                .first()
+            )
+
+            if not attendee:
+                return Response(
+                    {"detail": "Attendee not found for this conference"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if attendee.status == AttendeeStatus.ATTENDED.value:
+                return Response(
+                    {
+                        "detail": "Attendee already checked in",
+                        "attendee": AttendeeSerializer(attendee).data,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            attendee.status = AttendeeStatus.ATTENDED.value
+            attendee.save(update_fields=["status"])
+
+            return Response(
+                {
+                    "detail": "Attendee verified successfully",
+                    "attendee": AttendeeSerializer(attendee).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Verify attendee error: {e}",
+                exc_info=True,
+            )
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     # -----------------------------------
     # LIST ATTENDEES

@@ -64,6 +64,7 @@ class AppPermissionEnum(str, Enum):
     READ_CONFERENCE_JOIN_REQUEST= 'permission.read.join.request.conference'
     READ_OWN_CONFERENCE_JOIN_REQUEST= 'permission.read.own.join.request.conference'
     REQUEST_JOIN_TICKET = 'permission.join.request.ticket'
+    VERIFY_ATTENDEE = 'permission.verify.attendee'
     
     CREATE_SUB_THEME = 'permission.create.sub-theme'
     UPDATE_SUB_THEME = 'permission.update.sub-theme'

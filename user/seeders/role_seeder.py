@@ -52,6 +52,8 @@ class RoleSeeder:
             AppPermissionEnum.CREATE_SCHEDULE,
             AppPermissionEnum.UPDATE_SCHEDULE,
             AppPermissionEnum.DELETE_SCHEDULE,
+            
+            AppPermissionEnum.VERIFY_ATTENDEE,
         ],
 
         DefaultAppRolesEnum.Bursar: [
@@ -66,6 +68,7 @@ class RoleSeeder:
             AppPermissionEnum.UPDATE_PAYMENTS,
 
             AppPermissionEnum.READ_CONFERENCE_STATS,
+            AppPermissionEnum.VERIFY_ATTENDEE,
         ],
     }
 
