@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db import utils
 
 
 class UserConfig(AppConfig):
@@ -9,7 +10,10 @@ class UserConfig(AppConfig):
         from user.enums.permission_enums import AppPermissionEnum
         from user.seeders.role_seeder import RoleSeeder
 
-        # Seed permissions first
-        AppPermissionEnum.seed_permissions()
-
-        RoleSeeder.seed_default_roles()
+        
+        try:
+            AppPermissionEnum.seed_permissions()
+            RoleSeeder.seed_default_roles()
+        except (utils.ProgrammingError, utils.OperationalError):
+            # The table doesn't exist yet (e.g., during makemigrations/migrate)
+            pass

@@ -87,11 +87,14 @@ class UserManager(BaseUserManager["User"]):
             **extra_fields
         )
 
-def get_default_role() -> uuid.UUID:
-    default_role = Role.objects.filter(name=DefaultAppRolesEnum.default()).first()
-    if not default_role:
-        raise Exception("Default role not found")
-    return default_role.id
+
+def get_default_role():
+    try:
+        default_role = Role.objects.filter(name=DefaultAppRolesEnum.default()).first()
+        return default_role.id if default_role else None
+    except Exception:
+        return None
+
 
 class User(AbstractBaseUser, PermissionsMixin):
     user_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
