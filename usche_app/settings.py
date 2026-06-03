@@ -61,31 +61,21 @@ DEBUG = env.bool('DEBUG')
 CORS_ALLOW_CREDENTIALS = True
 
 ALLOWED_HOSTS = [
-    'conference.usche.ac.tz',
-    'www.conference.usche.ac.tz',
-    'usche.ac.tz',
-    'www.usche.ac.tz'
-    '64.227.139.214',
+    'usche.udom.ac.tz',
+    'www.usche.udom.ac.tz',
     '127.0.0.1',
     '0.0.0.0',
 ]
 
 CORS_ALLOWED_ORIGINS = [
-    "https://conference.usche.ac.tz:8443",
-    "https://www.conference.usche.ac.tz:8443",
-    "https://usche.ac.tz",
-    "https://www.usche.ac.tz",
+    "https://usche.udom.ac.tz",
+    "https://www.usche.udom.ac.tz",
     "http://localhost:5173",
-    "http://localhost:5174",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://conference.usche.ac.tz",
-    "https://conference.usche.ac.tz:8443",
-    "https://www.conference.usche.ac.tz",
-    "https://www.conference.usche.ac.tz:8443",
-    "https://usche.ac.tz",
-    "https://www.usche.ac.tz",
+    "https://usche.udom.ac.tz",   
+    "https://www.usche.udom.ac.tz",
 ]
 
 # Application definition
