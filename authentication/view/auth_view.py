@@ -138,18 +138,21 @@ class AuthenticationViewSet(viewsets.ViewSet):
 
                 # Use the generic send_email_task.delay
                 send_email_task.delay(
-                    subject="USCHe Password Reset Request",
+                    subject="Password Reset Request",
                     to=user.email,
                     greeting=f"Hello {user.first_name},",
                     lines=[
-                        "A request was made to reset the password for your USCHe account.",
-                        "If you made this request, please use the link below to set a new password.",
-                        "If you did not request this, you may safely ignore this email."
+                        "A password reset request was received for your USCHe account.",
+                        "If you initiated this request, please follow the link below to set a new password.",
+                        "If you do not recognize this activity, you may disregard this message. No changes will be made to your account unless the password reset process is completed."
                     ],
-                    salutations=["Regards,", "USCHe Support Team"],
-                    button_text="Set New Password",
+                    salutations=[
+                        "Thank you,",
+                        "USCHe Account Services"
+                    ],
+                    button_text="Continue Password Reset",
                     button_url=f"{settings.FRONTEND_BASE_URL}/auth/reset-password/{token}",
-                    footer_text="© 2026 USCHe - University of Dodoma"
+                    footer_text="This email was sent automatically. Please do not reply to this message."
                 )
 
                 return Response(
@@ -193,18 +196,24 @@ class AuthenticationViewSet(viewsets.ViewSet):
 
             # Send activation email asynchronously
             send_email_task.delay(
-                subject="Activate Your USChE Account",
+                subject="Confirm Your Email Address",
                 to=user.email,
                 greeting=f"Hello {user.first_name},",
                 lines=[
-                    "You requested a new activation link.",
-                    "Please click the button below to activate your account."
+                    "Thank you for creating a USCHe account.",
+                    "To complete your account setup, please confirm that this email address belongs to you by using the button below.",
+                    "After confirmation, you will be able to access USCHe services and continue using your account.",
+                    "If you did not create a USCHe account, no further action is required and you may safely ignore this message."
                 ],
-                salutations=["Best regards,", "The USChE Team"],
-                button_text="Activate Account",
+                salutations=[
+                    "Thank you,",
+                    "USCHe Account Services"
+                ],
+                button_text="Confirm Email Address",
                 button_url=f"{settings.FRONTEND_BASE_URL}/auth/activate/{token}",
-                footer_text="© 2026 USChE - University of Dodoma"
+                footer_text="This email was sent automatically regarding your USCHe account. Please do not reply to this message."
             )
+
 
             return Response(
                 {
@@ -350,17 +359,28 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 if not user.is_active:
                     token = generate_token(user=user)
                     # Resend activation email
-                    subject = "Activate Your USChE Account"
+                    subject = "USCHe Account"
+
                     recipient = user.email
+
                     greeting = f"Hello {user.first_name},"
+
                     lines = [
-                        "It seems you already registered but haven't activated your account yet.",
-                        "Please click the button below to activate your account."
+                    "Your USCHe account is available.",
+                    "Please use the link below to continue."
                     ]
-                    salutations = ["Best regards,", "The USChE Team"]
-                    button_text = "Activate Account"
+
+                    salutations = [
+                    "USCHe"
+                    ]
+
+                    button_text = "Continue"
+
                     button_url = f"{settings.FRONTEND_BASE_URL}/auth/activate/{token}"
-                    footer_text = "© 2026 USChE - University of Dodoma"
+
+                    footer_text = "University of Dodoma"
+
+
 
                     send_email_task.delay(
                         subject=subject,
@@ -405,17 +425,26 @@ class AuthenticationViewSet(viewsets.ViewSet):
                 token = generate_token(user=user)
 
                 # Send activation email
-                subject = "Activate Your USChE Account"
+                subject = "USCHe Registration"
                 recipient = user.email
                 greeting = f"Hello {user.first_name},"
+
                 lines = [
-                    "Thank you for registering for the USChE Conference.",
-                    "Please click the button below to activate your account."
+                "Thank you for registering with USCHe.",
+                "Please use the link below to continue."
                 ]
-                salutations = ["Best regards,", "The USChE Team"]
-                button_text = "Activate Account"
-                button_url = f"{settings.FRONTEND_BASE_URL}/activate/{token}"
-                footer_text = "© 2026 USChE - University of Dodoma"
+
+                salutations = [
+                "USCHe"
+                ]
+
+                button_text = "Continue"
+
+                button_url = f"{settings.FRONTEND_BASE_URL}/auth/activate/{token}"
+
+                footer_text = "University of Dodoma"
+
+
 
                 send_email_task.delay(
                     subject=subject,

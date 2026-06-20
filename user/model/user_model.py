@@ -315,9 +315,16 @@ class User(AbstractBaseUser, PermissionsMixin):
         return user
     
     @classmethod
-    def filter_users(cls, search_query: str = None, staff: bool = None, created_from=None, created_to=None):
+    def filter_users(
+        cls,
+        search_query: str = None,
+        staff: bool = None,
+        created_from=None,
+        created_to=None,
+    ):
         """
-        Return users filtered by full name, staff status, and optional created_at range.
+        Return users filtered by name, email, staff status,
+        and optional created_at date range.
         """
         filters = Q(is_superuser=False)
 
@@ -327,19 +334,22 @@ class User(AbstractBaseUser, PermissionsMixin):
             filters &= Q(is_staff=False)
 
         if search_query:
-            search_query = search_query.lower()
+            search_query = search_query.strip()
+
             filters &= (
-                Q(first_name__icontains=search_query) |
-                Q(middle_name__icontains=search_query) |
-                Q(last_name__icontains=search_query)
+                Q(first_name__icontains=search_query)
+                | Q(middle_name__icontains=search_query)
+                | Q(last_name__icontains=search_query)
+                | Q(email__icontains=search_query)
             )
 
         if created_from:
             filters &= Q(created_at__date__gte=created_from)
+
         if created_to:
             filters &= Q(created_at__date__lte=created_to)
 
-        return cls.objects.filter(filters).order_by('-created_at')
+        return cls.objects.filter(filters).order_by("-created_at")
     
     @classmethod
     def users(

@@ -40,7 +40,7 @@ class UserViewSet(viewsets.ModelViewSet):
         'users_report': AppPermissionEnum.READ_USERS_REPORT.value,
         'change_password': AppPermissionEnum.CHANGE_PASSWORD.value,
         'get_profile': AppPermissionEnum.READ_PROFILE.value,
-        'retrieve_user': AppPermissionEnum.READ_USERS.value,
+        'retrieve_user': AppPermissionEnum.READ_PROFILE.value,
         'toggle_staff': AppPermissionEnum.UPDATE_STAFF_STATUS.value,
         'toggle_active': AppPermissionEnum.MANAGE_STAFF_MEMBERSHIP.value,
     }

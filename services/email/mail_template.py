@@ -120,7 +120,7 @@ class EmailTemplate:
                             {greeting_html}
                             </h1>
                             <p style="color: #a0a0b8; font-size: 15px; margin: 0">
-                            We're thrilled to have you with us
+                            Important information from USChE
                             </p>
                         </td>
                         </tr>
