@@ -76,9 +76,13 @@ class RoleSeeder:
     def seed_default_roles(cls):
         with transaction.atomic():
             for role_enum in DefaultAppRolesEnum:
-                role, _ = Role.objects.get_or_create(
+                role, created = Role.objects.get_or_create(
                     name=role_enum.value
                 )
+
+                # IMPORTANT: skip if role already has permissions
+                if role.permissions.exists():
+                    continue
 
                 if role_enum == DefaultAppRolesEnum.Admin:
                     permissions = AppPermission.objects.filter(
@@ -88,10 +92,7 @@ class RoleSeeder:
                             if perm != AppPermissionEnum.NONE
                         ]
                     )
-
                     role.permissions.set(permissions)
-                    role.save()
-
                     continue
 
                 permission_codes = (
@@ -100,13 +101,9 @@ class RoleSeeder:
                 )
 
                 permissions = AppPermission.objects.filter(
-                    code_name__in=[
-                        permission.value
-                        for permission in permission_codes
-                    ]
+                    code_name__in=[p.value for p in permission_codes]
                 )
 
                 role.permissions.set(permissions)
-                role.save()
 
-        print("All default roles seeded successfully!")
+        print("Default roles seeded safely (no overwrite).")
