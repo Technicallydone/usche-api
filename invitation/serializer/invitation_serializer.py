@@ -1,17 +1,27 @@
 from rest_framework import serializers
-from invitation.models import Invitation
-from user.models import User
 
-class InvitationUserSerializer(serializers.Serializer):
-    user_id = serializers.UUIDField(source="user.user_id", allow_null=True)
-    first_name = serializers.CharField(source="user.first_name", allow_null=True)
-    middle_name = serializers.CharField(source="user.middle_name", allow_null=True)
-    last_name = serializers.CharField(source="user.last_name", allow_null=True)
-    phone_number = serializers.CharField(source="user.phone_number", allow_null=True)
-    email = serializers.EmailField(source="user.email", allow_null=True)
-    country = serializers.CharField(source="user.country", allow_null=True)
-    occupation = serializers.CharField(source="user.occupation", allow_null=True)
-    title = serializers.CharField(source="user.title", allow_null=True)
-    affiliation = serializers.CharField(source="user.affiliation", allow_null=False)
-    invitation_status = serializers.BooleanField()
-    invitation_sent = serializers.BooleanField()
+class InvitationUserResponseSerializer(serializers.Serializer):
+    # User details
+    user_id = serializers.UUIDField()
+    first_name = serializers.CharField()
+    middle_name = serializers.CharField(allow_null=True)
+    last_name = serializers.CharField()
+    email = serializers.EmailField()
+    phone_number = serializers.CharField()
+    title = serializers.CharField()
+    affiliation = serializers.CharField()
+
+    # Invitation details (null when the user has not been invited)
+    invitation_id = serializers.UUIDField(allow_null=True)
+    is_invited = serializers.BooleanField()
+    
+    # Map the JSON property 'invitation_sent' to the safe annotation name 'is_invitation_sent'
+    invitation_sent = serializers.BooleanField(source='is_invitation_sent', allow_null=True)
+    
+    daily_sent_count = serializers.IntegerField(allow_null=True)
+    invited_on = serializers.DateTimeField(allow_null=True)
+    sent_at = serializers.DateTimeField(allow_null=True)
+
+    # Conference details
+    conference_id = serializers.UUIDField(allow_null=True) # Allowed null since conference_id can be missing
+    conference_name = serializers.CharField(allow_null=True)

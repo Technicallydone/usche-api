@@ -28,7 +28,6 @@ from user.models import User
 from user.enums.permission_enums import AppPermissionEnum
 from user.permissions import HasAppPermission
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 

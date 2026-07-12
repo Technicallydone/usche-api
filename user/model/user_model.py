@@ -12,12 +12,11 @@ from user.model.role_model import Role
 from utils.validator import validate_phone_number
 from django.utils import timezone
 from datetime import timedelta
-from django.db.models import Q, Count
+from django.db.models import Q, Count, OuterRef, Exists, Subquery, Value, BooleanField, UUIDField, DateTimeField, IntegerField
 from django.db.models.functions import ExtractYear
 from django.db import transaction
 from django.contrib.auth.models import BaseUserManager
 from django.core.exceptions import ValidationError
-from rest_framework.exceptions import NotFound
 
 class UserManager(BaseUserManager["User"]):
     def create_user(
@@ -158,6 +157,81 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def invitation_sent(self):
         return self.has_sent_activation_email
+    
+    @classmethod
+    def filter_users_for_invitation(
+        cls,
+        conference_id=None,
+        search_query=None,
+        invitation_status=None,
+        created_from=None,
+        created_to=None,
+    ):
+        from invitation.models import Invitation
+
+        users = cls.objects.all()
+
+        # 1. Apply global user filters
+        if search_query:
+            users = users.filter(
+                Q(first_name__icontains=search_query)
+                | Q(middle_name__icontains=search_query)
+                | Q(last_name__icontains=search_query)
+                | Q(email__icontains=search_query)
+                | Q(phone_number__icontains=search_query)
+            )
+
+        if created_from:
+            users = users.filter(created_at__date__gte=created_from)
+
+        if created_to:
+            users = users.filter(created_at__date__lte=created_to)
+
+        # 2. Add Annotations dynamically
+        if conference_id is None:
+            # GLOBAL MODE: Look across all invitations
+            invitation_qs = Invitation.objects.filter(user_id=OuterRef("user_id"))
+        else:
+            # SPECIFIC MODE: Filter strictly for designated conference
+            invitation_qs = Invitation.objects.filter(
+                conference_id=conference_id,
+                user_id=OuterRef("user_id"),
+            )
+
+        # Apply the subqueries uniformly, NOW INCLUDING conference details!
+        users = users.annotate(
+            is_invited=Exists(invitation_qs),
+            invitation_id=Subquery(invitation_qs.values("invitation_id")[:1]),
+            is_invitation_sent=Subquery(invitation_qs.values("invitation_sent")[:1]),
+            daily_sent_count=Subquery(invitation_qs.values("daily_sent_count")[:1]),
+            invited_on=Subquery(invitation_qs.values("invited_on")[:1]),
+            sent_at=Subquery(invitation_qs.values("sent_at")[:1]),
+            
+            # --- ADD THESE TWO LINES TO FETCH CONFERENCE INFO ---
+            conference_id=Subquery(invitation_qs.values("conference_id")[:1]),
+            conference_name=Subquery(invitation_qs.values("conference__conference_name")[:1]),
+        )
+
+        # 3. Apply invitation status filters
+        if invitation_status == InvitationStatusEnum.INVITED.value:
+            users = users.filter(is_invited=True)
+
+        elif invitation_status == InvitationStatusEnum.NOT_INVITED.value:
+            users = users.filter(is_invited=False)
+
+        elif invitation_status == InvitationStatusEnum.SENT.value:
+            users = users.filter(
+                is_invited=True,
+                is_invitation_sent=True,
+            )
+
+        elif invitation_status == InvitationStatusEnum.NOT_SENT.value:
+            users = users.filter(
+                is_invited=True,
+                is_invitation_sent=False,
+            )
+
+        return users.order_by("-created_at")
     
     @classmethod
     def users_without_abstract_and_payment(cls, conference: Conference):
