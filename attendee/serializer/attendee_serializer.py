@@ -8,7 +8,6 @@ class AttendeeSerializer(serializers.Serializer):
     attendee_id = serializers.UUIDField()
     participant = UserResponseSerializer()
     conference = ConferenceSerializer()
-    invitation_sent = serializers.BooleanField()
     status = serializers.CharField()
 
 

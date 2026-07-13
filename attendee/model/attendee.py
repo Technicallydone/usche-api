@@ -110,7 +110,6 @@ class Attendee(models.Model):
         conference_id: str = None,
         created_from=None,
         created_to=None,
-        invitation_status: str = None,
         attendee_status = None
     ):
         filters = Q(participant__is_superuser=False)
@@ -135,13 +134,6 @@ class Attendee(models.Model):
         if created_to:
             filters &= Q(created_at__date__lte=created_to)
         
-        if invitation_status == "sent":
-            filters &= Q(invitation_sent=True)
-
-        elif invitation_status == "not_sent":
-            filters &= Q(invitation_sent=False)
-            
-
         return (
             cls.objects
             .filter(filters)

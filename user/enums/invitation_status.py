@@ -3,9 +3,10 @@ from enum import Enum
 
 class InvitationStatusEnum(Enum):
     ALL = "all"
+    SENT = "sent"
+    NOT_SENT = "not_sent"
     INVITED = "invited"
     NOT_INVITED = "not_invited"
-    INVITED_NOT_SENT = "invited_not_sent"
     
     @classmethod
     def choices(cls):

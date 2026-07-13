@@ -22,7 +22,7 @@ def get_today_start():
     max_retries=3,
     default_retry_delay=60,
 )
-def send_pending_invitations_email(self, daily_limit: int = 50):
+def send_pending_invitations_email(self, daily_limit: int = 200):
     try:
         today_start = get_today_start()
 

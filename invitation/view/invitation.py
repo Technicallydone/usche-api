@@ -12,11 +12,16 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from invitation.models import Invitation
-from invitation.serializers import InvitationUserSerializer, SendInvitationSerializer
+from invitation.serializers import (
+    InvitationUserResponseSerializer,
+    SendInvitationSerializer,
+    InvitationFilterQuerySerializer
+)
 from conference.models import Conference
 from user.models import User
 from user.permissions import HasAppPermission
 from user.enums.permission_enums import AppPermissionEnum
+from rest_framework.pagination import PageNumberPagination
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +35,51 @@ class InvitationViewSet(viewsets.ViewSet):
 
     permission_mapping = {
         "send_invitations": AppPermissionEnum.SEND_INVITATION.value,
+        "list": AppPermissionEnum.READ_INVITATION.value,
     }
+    
+    def list(self, request: Request):
+        serializer = InvitationFilterQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            users = User.filter_users_for_invitation(
+                conference_id=serializer.validated_data.get("conference_id"),
+                search_query=serializer.validated_data.get("search_query"),
+                invitation_status=serializer.validated_data.get("invitation_status"),
+                created_from=serializer.validated_data.get("created_from"),
+                created_to=serializer.validated_data.get("created_to"),
+            )
+
+            paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
+            page = paginator.paginate_queryset(users, request)
+
+            response_serializer = InvitationUserResponseSerializer(
+                page if page is not None else users,
+                many=True,
+            )
+
+            if page is not None:
+                return paginator.get_paginated_response(
+                    response_serializer.data
+                )
+
+            return Response(
+                response_serializer.data,
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching invitation users: {e}",
+                exc_info=True,
+            )
+            return Response(
+                {"detail": "An error occurred while fetching invitation users"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["post"], url_path="send")
     def send_invitations(self, request: Request):

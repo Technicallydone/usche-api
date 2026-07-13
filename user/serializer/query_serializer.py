@@ -13,8 +13,3 @@ class UserFilterQuerySerializer(serializers.Serializer):
         choices=AttendeeStatus.choices(),
         required=False,
     )
-    
-    invitation_status = serializers.ChoiceField(
-        choices=["sent", "not_sent"],
-        required=False
-    )
