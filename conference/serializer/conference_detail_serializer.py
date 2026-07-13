@@ -35,9 +35,12 @@ class ConferenceDetailSerializer(serializers.Serializer):
     updated_at = serializers.DateTimeField()
     
     year = serializers.CharField()
-
+    
+    abstract_submission_open = serializers.BooleanField(default=False)
     abstract_submission_deadline = serializers.DateTimeField()
-    registration_open = serializers.BooleanField()
+    
+    attendee_registration_open = serializers.BooleanField(default=False)
+    attendee_registration_deadline = serializers.DateTimeField()
     
     certificate_background = serializers.SerializerMethodField()
 

@@ -13,10 +13,16 @@ class ConferenceSerializer(serializers.Serializer):
     venue_description = serializers.CharField()
     venue_directions = serializers.CharField(allow_blank=True, required=False)
     capacity = serializers.IntegerField()
-    abstract_submission_deadline = serializers.DateTimeField()
+
     certificate_background = serializers.FileField(allow_null=True, required=False)
     id_badge_background = serializers.FileField(allow_null=True, required=False)
-    registration_open = serializers.BooleanField()
+    
+    abstract_submission_open = serializers.BooleanField(default=False)
+    abstract_submission_deadline = serializers.DateTimeField()
+    
+    attendee_registration_open = serializers.BooleanField(default=False)
+    attendee_registration_deadline = serializers.DateTimeField()
+    
     year = serializers.CharField()
     listing_date = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()

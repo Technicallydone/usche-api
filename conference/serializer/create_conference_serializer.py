@@ -16,8 +16,12 @@ class CreateConferenceSerializer(serializers.Serializer):
     start_time = serializers.TimeField(required=True)
     end_time = serializers.TimeField(required=True)
     capacity = serializers.IntegerField(required=True)
+    
     abstract_submission_deadline = serializers.DateTimeField(required=True)
-    registration_open = serializers.BooleanField()
+    abstract_submission_open = serializers.BooleanField(default=False)
+    attendee_registration_open = serializers.BooleanField(default=False)
+    attendee_registration_deadline = serializers.DateTimeField(required=True)
+    
     year = serializers.CharField(required=True)
     certificate_background = serializers.FileField(
         required=True,
@@ -71,8 +75,10 @@ class UpdateConferenceSerializer(serializers.Serializer):
     start_time = serializers.TimeField()
     end_time = serializers.TimeField()
     capacity = serializers.IntegerField()
-    abstract_submission_deadline = serializers.DateTimeField()
-    registration_open = serializers.BooleanField()
+    abstract_submission_deadline = serializers.DateTimeField(required=False)
+    abstract_submission_open = serializers.BooleanField(default=False)
+    attendee_registration_open = serializers.BooleanField(default=False)
+    attendee_registration_deadline = serializers.DateTimeField(required=False)
     year = serializers.CharField()
 
 

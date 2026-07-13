@@ -355,6 +355,10 @@ CELERY_TASK_ROUTES = {
     "badge.tasks.generate_conference_badges_task": {
         "queue": "high_priority",
     },
+    
+    "services.email.tasks.send_email_task": {
+        "queue": "high_priority",
+    },
 
     # Uncomment when certificate generation is enabled
     # "certificate.tasks.generate_certificates_for_conference_task": {
@@ -367,33 +371,6 @@ CELERY_TASK_ROUTES = {
 # --------------------------------------------------
 
 CELERY_BEAT_SCHEDULE = {
-    "send_high_priority_email": {
-        "task": "user.tasks.send_high_priority_email",
-        "schedule": timedelta(minutes=1),
-        "options": {
-            "queue": "high_priority",
-            "priority": 10,
-        },
-    },
-
-    "send_low_priority_email": {
-        "task": "user.tasks.send_low_priority_email",
-        "schedule": timedelta(minutes=10),
-        "options": {
-            "queue": "low_priority",
-            "priority": 0,
-        },
-    },
-
-    # "request_feedback_task": {
-    #     "task": "feedback.tasks.request_feedback_task",
-    #     "schedule": timedelta(hours=24),
-    #     "options": {
-    #         "queue": "high_priority",
-    #         "priority": 10,
-    #     },
-    # },
-
     "sync_recent_logged_in_users_as_attendees": {
         "task": "attendee.tasks.sync_recent_logged_in_users_as_attendees",
         "schedule": timedelta(minutes=1),

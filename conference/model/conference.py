@@ -19,7 +19,11 @@ class Conference(models.Model):
     venue_directions = models.TextField(null=True, blank=True)
     capacity = models.IntegerField(null=False, blank=False)
 
+    abstract_submission_open = models.BooleanField(default=False)
     abstract_submission_deadline = models.DateTimeField(null=False, blank=False)
+    
+    attendee_registration_open = models.BooleanField(default=False)
+    attendee_registration_deadline = models.DateTimeField(null=True, blank=True)
     
     certificate_background = models.FileField(
         upload_to=upload_certificate_template,
@@ -34,8 +38,6 @@ class Conference(models.Model):
         blank=True,
         help_text="Upload the background template for ID badges"
     )
-    
-    registration_open = models.BooleanField(default=False)
     
     year = models.CharField(blank=False, null=False, default='2025/2026')
 

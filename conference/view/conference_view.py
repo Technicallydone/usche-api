@@ -31,17 +31,10 @@ from conference.serializers import (
     CreateConferenceScheduleSerializer,
     ConferenceStatsSerializer,
     UpdateConferenceSerializer,
-    UpdateRegistrationFeeSerializer,
-    UpdateTargetGroupSerializer,
-    UpdateBankAccountSerializer,
-    UpdateScheduleDaySerializer,
-    UpdateConferenceScheduleSerializer,
     SVGUploadSerializer,
     SliderBulkUploadSerializer
 )
 from payment.model.payment import Payment
-from speakers.models import Speaker
-from sponsors.models import Sponsor
 from themes.models import MainTheme, SubTheme
 from usche_app import settings
 from user.enums.permission_enums import AppPermissionEnum
@@ -52,8 +45,7 @@ from rest_framework.exceptions import ValidationError
 from datetime import timedelta
 import logging
 from django.utils import timezone
-from django.utils import timezone
-from django.db.models import Count, Sum
+from django.db.models import Count, Q
 
 from utils.qr_code_generator import generate_qr_code
 
@@ -111,6 +103,7 @@ class ConferenceViewSet(viewsets.ViewSet):
                     {
                         "conference_id": str(conf.conference_id),
                         "conference_name": conf.conference_name,
+                        "year": conf.year
                     }
                     for conf in conferences
                 ],
@@ -306,22 +299,41 @@ class ConferenceViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    @action(detail=False, methods=['get'], url_path='open-for-submission')
-    def open_for_submission(self, request: Request):
+    @action(detail=False, methods=['get'], url_path='open')
+    def open_submission(self, request: Request):
         try:
             now = timezone.now()
 
             conferences = Conference.objects.filter(
-                registration_open=True,
-                abstract_submission_deadline__gt=now
+                end_date__gte=now.date(),
+            ).filter(
+                Q(
+                    abstract_submission_open=True,
+                    abstract_submission_deadline__gt=now,
+                )
+                |
+                Q(
+                    attendee_registration_open=True,
+                    attendee_registration_deadline__gt=now,
+                )
             ).order_by("-listing_date")
 
-            serializer = ConferenceDetailSerializer(conferences, many=True)
+            serializer = ConferenceDetailSerializer(
+                conferences,
+                many=True
+            )
 
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK
+            )
 
         except Exception as e:
-            logger.error(f"Error fetching open conferences: {e}")
+            logger.error(
+                f"Error fetching open conferences: {e}",
+                exc_info=True,
+            )
+
             return Response(
                 {"detail": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -720,18 +732,38 @@ class ConferenceViewSet(viewsets.ViewSet):
         validated_data = serializer.validated_data
         try:
             conference = Conference.objects.create(
-                conference_name=validated_data.get('conference_name'),
-                description=validated_data.get('description'),
-                start_date=validated_data.get('start_date'),
-                end_date=validated_data.get('end_date'),
-                start_time=validated_data.get('start_time'),
-                end_time=validated_data.get('end_time'),
-                capacity=validated_data.get('capacity'),
-                abstract_submission_deadline=validated_data.get('abstract_submission_deadline'),
-                registration_open=validated_data.get('registration_open', False),
-                year=validated_data.get('year'),
-                certificate_background=validated_data.get('certificate_background'),
-                id_badge_background=validated_data.get('id_badge_background'),
+                conference_name=validated_data.get("conference_name"),
+                description=validated_data.get("description"),
+                start_date=validated_data.get("start_date"),
+                end_date=validated_data.get("end_date"),
+                start_time=validated_data.get("start_time"),
+                end_time=validated_data.get("end_time"),
+                capacity=validated_data.get("capacity"),
+
+                abstract_submission_open=validated_data.get(
+                    "abstract_submission_open",
+                    False,
+                ),
+                abstract_submission_deadline=validated_data.get(
+                    "abstract_submission_deadline"
+                ),
+
+                attendee_registration_open=validated_data.get(
+                    "attendee_registration_open",
+                    False,
+                ),
+                attendee_registration_deadline=validated_data.get(
+                    "attendee_registration_deadline"
+                ),
+
+                year=validated_data.get("year"),
+
+                certificate_background=validated_data.get(
+                    "certificate_background"
+                ),
+                id_badge_background=validated_data.get(
+                    "id_badge_background"
+                ),
             )
             
             return Response(
@@ -765,8 +797,21 @@ class ConferenceViewSet(viewsets.ViewSet):
             conference.start_time = validated_data.get("start_time")
             conference.end_time = validated_data.get("end_time")
             conference.capacity = validated_data.get("capacity")
-            conference.abstract_submission_deadline = validated_data.get("abstract_submission_deadline")
-            conference.registration_open = validated_data.get("registration_open")
+
+            conference.abstract_submission_open = validated_data.get(
+                "abstract_submission_open"
+            )
+            conference.abstract_submission_deadline = validated_data.get(
+                "abstract_submission_deadline"
+            )
+
+            conference.attendee_registration_open = validated_data.get(
+                "attendee_registration_open"
+            )
+            conference.attendee_registration_deadline = validated_data.get(
+                "attendee_registration_deadline"
+            )
+
             conference.year = validated_data.get("year")
 
             conference.save()

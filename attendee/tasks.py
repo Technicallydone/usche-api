@@ -8,6 +8,7 @@ from django.utils import timezone
 from attendee.models import Attendee
 from conference.models import Conference
 from user.models import User
+from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,11 @@ def sync_recent_logged_in_users_as_attendees(self: Task):
         active_conference = (
             Conference.objects
             .filter(
-                registration_open=True,
-                end_date__gte=timezone.now().date()
+                end_date__gte=timezone.now().date(),
+            )
+            .filter(
+                Q(abstract_submission_open=True) |
+                Q(attendee_registration_open=True)
             )
             .order_by("-listing_date")
             .first()
