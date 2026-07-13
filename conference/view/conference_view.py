@@ -1064,3 +1064,39 @@ class ConferenceViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.error(f"Error retrieving conference {pk}: {str(e)}")
             return Response({"detail": "Error retrieving conference"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=["get"], url_path="by-year")
+    def retrieve_by_year(self, request: Request):
+        year = request.query_params.get("year")
+        
+        if not year:
+            return Response(
+                {"detail": "Year is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        conference = (
+            Conference.objects
+            .filter(year=year)
+            .select_related("theme")
+            .prefetch_related(
+                "pre_conference_sliders",
+                "slider_images",
+                "sponsors",
+                "speakers",
+                "registration_fees",
+                "schedule_days",
+                "bank_accounts",
+                "groups",
+            )
+            .first()
+        )
+
+        if not conference:
+            return Response(
+                {"detail": "Conference not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = ConferenceDetailSerializer(conference)
+        return Response(serializer.data)
