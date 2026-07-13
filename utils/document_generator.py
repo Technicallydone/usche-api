@@ -53,6 +53,7 @@ def generate_invitation_pdf(user: User, conference: Conference):
             "venue": conference.venue_name,
             "images": images,
             "title": user.title,
+            "first_name": user.first_name,
             "last_name": user.last_name,
             "email": user.email,
             "conference_name": conference.conference_name,
