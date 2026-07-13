@@ -11,30 +11,17 @@
         margin: 40px;
         text-align: justify;
       }
-      .logo {
-        height: 80px;
-      }
+      .logo { height: 80px; }
       .subject {
-        text-align: center;
+        text-align: left;
         font-weight: bold;
-        text-decoration: underline;
-        font-size: 14pt;
+        font-size: 12pt;
         margin-top: 20px;
+        margin-left: 30px;
       }
-      .content {
-        font-size: 12px;
-        margin-top: 20px;
-      }
-      .content ol {
-        margin: 0;
-        padding-left: 15px;
-        list-style-position: outside;
-      }
-
-      .content ol li {
-        margin-bottom: 15px;
-        text-indent: 0;
-      }
+      .content { font-size: 12px; margin-top: 10px; }
+      .content ol { margin: 0; padding-left: 20px; list-style-position: outside; }
+      .content ol li { margin-bottom: 15px; text-indent: 0; }
     </style>
   </head>
   <body>
@@ -44,21 +31,11 @@
           <img src="{{ images.uhuru_logo }}" class="logo" />
         </td>
         <td width="70%" align="center">
-          <h2 style="margin: 2px 0; font-size: 14px">
-            THE UNITED REPUBLIC OF TANZANIA
-          </h2>
-          <h3 style="margin: 2px 0; font-size: 14px">
-            MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY
-          </h3>
-          <h2 style="margin: 2px 0; font-size: 14px">
-            THE UNIVERSITY OF DODOMA
-          </h2>
-          <h2 style="margin: 2px 0; font-size: 14px">
-            UDOM Scientific Conference on Health (USCHe)
-          </h2>
-          <h4 style="margin: 2px 0; font-size: 14px">
-            P.O.Box 395, Dodoma | Email: info.usche@udom.ac.tz
-          </h4>
+          <h2 style="margin: 2px 0; font-size: 14px">THE UNITED REPUBLIC OF TANZANIA</h2>
+          <h3 style="margin: 2px 0; font-size: 14px">MINISTRY OF EDUCATION, SCIENCE AND TECHNOLOGY</h3>
+          <h2 style="margin: 2px 0; font-size: 14px">THE UNIVERSITY OF DODOMA</h2>
+          <h2 style="margin: 2px 0; font-size: 14px">UDOM Scientific Conference on Health (USCHe)</h2>
+          <h4 style="margin: 2px 0; font-size: 12px">P.O. Box 395, Dodoma &nbsp;&nbsp; Email: info.usche@udom.ac.tz</h4>
         </td>
         <td width="15%" align="right">
           <img src="{{ images.udom_logo }}" class="logo" />
@@ -66,90 +43,61 @@
       </tr>
     </table>
 
-    <div style="height: 3px; background-color: gray"></div>
+    <div style="height: 2px; background-color: gray; margin-top: 8px;"></div>
 
-    <p style="text-align: right; font-size: 12px">
+    <p style="text-align: right; font-size: 12px; margin-top: 15px;">
       <strong>Date:</strong> {{ date }}
     </p>
 
-    <p style="font-size: 12px">
-      <strong>{{ title }} {{ last_name }}</strong><br />
-      {{ email }}
+    <p style="font-size: 12px; margin-top: 10px;">
+      <strong>{{ title }} {{ first_name }} {{ last_name }},</strong><br />
+      {{ email }}.
     </p>
 
-    <p style="font-size: 12px">Dear Sir/Madam,</p>
+    <p style="font-size: 12px;">Dear Sir/ Madam,</p>
 
     <p class="subject">
-      RE: INVITATION TO ATTEND THE 2<sup><small>ND</small></sup> UDOM SCIENTIFIC
-      CONFERENCE ON HEALTH
+      RE: INVITATION TO ATTEND THE 3<sup><small>RD</small></sup> UDOM SCIENTIFIC CONFERENCE ON HEALTH
     </p>
 
-    <p style="font-size: 12px">Reference is made to the above heading.</p>
-
     <div class="content">
-      <ol>
+      <p style="font-size: 12px; margin-left: 30px;">Reference is made to the above heading.</p>
+      <ol start="2">
         <li>
-          The University of Dodoma will be conducting the 2<sup
-            ><small>ND</small></sup
-          >
+          The University of Dodoma will be conducting the 3<sup><small>rd</small></sup>
           UDOM Scientific Conference on Health (USCHe) from
-          <strong>11<sup>th</sup> - 13<sup>th</sup> June 2025</strong> at
-          <strong
-            >Dodoma City Hall - Magufuli (Government) City, Mtumba Area</strong
-          >
-          in Dodoma, Tanzania. The main theme will be “Evidence-Based Practices
-          and Innovations in Addressing Health Challenges”.
+          <strong>29<sup>th</sup> &ndash; 31<sup>st</sup> July 2026</strong>
+          in Dodoma, Tanzania. The main theme of this conference is
+          <strong>&ldquo;Our Health, Our Future: Building Resilient, Integrated and Sustainable Health Systems&rdquo;</strong>.
         </li>
         <li>
-          This scientific conference is expected to bring together scholars,
-          researchers, practitioners, policymakers, and other stakeholders in
-          healthcare, the objective being; fostering knowledge exchange,
-          innovations, communication, and promotion of best practices across
-          various aspects of healthcare. In so doing, contribute towards
-          improving effectiveness in addressing health challenges. Also, enable
-          personal visibility, exposure, and interactions towards forging needed
-          national and international collaborations for mutual growth in career
-          and ability to address pertinent health challenges.
+          The 3<sup><small>rd</small></sup> USCHe aims at convening health practitioners, academicians, researchers,
+          innovators, students, policy and decision makers, development partners and funders,
+          advocates and philanthropists from various sectors engaged in health so as to catalyze and
+          strategize on actions towards building a more resilient, integrated and sustainable health
+          system in Tanzania and beyond.
         </li>
         <li>
-          On behalf of the organizing committee, it is my pleasure to invite you
-          to this scientific conference.
+          On behalf of the organizing committee, it is my pleasure to invite you to this scientific conference.
         </li>
         <li>
-          For information on
-          <strong
-            >registration, abstract submission, payment details, pre- and
-            post-conference events, kindly visit
-            <a href="http://www.usche.ac.tz" target="_blank">www.usche.ac.tz</a>
-          </strong>
+          For information on <strong>registration, abstract submission, payment details, Pre- and post-conference events</strong>
+          kindly visit <a href="https://usche.udom.ac.tz">https://usche.udom.ac.tz</a>
         </li>
+        <li>Karibu sana.</li>
       </ol>
     </div>
 
-    <p style="font-size: 12px">Karibu sana.</p>
-
-    <table width="100%" style="margin-top: 10px">
+    <table width="100%" style="margin-top: 20px;">
       <tr>
-        <td
-          width="70%"
-          align="left"
-          style="font-size: 12px; padding: 0; margin: 0"
-        >
-          <img src="{{ images.signature }}" style="margin: 0; padding: 0" />
-          <p style="margin: 0; padding: 0; font-weight: bold">
-            Alfred Meremo, MD, MMed, FISN, PhD.
-          </p>
-          <p style="margin: 0; padding: 0">Chair, Organizing Committee</p>
-          <p style="margin: 0; padding: 0">
-            UDOM Scientific Conference on Health (USCHe)
-          </p>
+        <td width="60%" align="left" style="font-size: 12px; padding: 0; margin: 0;">
+          <img src="{{ images.signature }}" style="margin: 0; padding: 0; height: 60px;" />
+          <p style="margin: 0; padding: 0; font-weight: bold;">Alfred Meremo, MD, MMed, FISN, PhD.</p>
+          <p style="margin: 0; padding: 0;">Chair, Organizing Committee.</p>
+          <p style="margin: 0; padding: 0;">UDOM Scientific Conference on Health (USCHe)</p>
         </td>
-        <td width="30%" align="right" style="padding: 0; margin: 0">
-          <img
-            src="{{ images.usche_logo }}"
-            class="logo"
-            style="margin: 0; padding: 0"
-          />
+        <td width="40%" align="right" style="padding: 0; margin: 0;">
+          <img src="{{ images.usche_logo }}" class="logo" style="margin: 0; padding: 0; height: 100px;" />
         </td>
       </tr>
     </table>
