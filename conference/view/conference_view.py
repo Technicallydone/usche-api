@@ -2,6 +2,8 @@ import mimetypes
 import os
 import re
 from django.http import FileResponse
+import conference
+from conference.utils.schedule_pdf import generate_schedule_pdf
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from abstracts.enums.abstract_status import AbstractStatus
@@ -79,11 +81,58 @@ class ConferenceViewSet(viewsets.ViewSet):
     @action(
         detail=True,
         methods=["get"],
+        url_path="schedule/pdf",
+    )
+    def export_schedule_pdf(self, request, pk=None):
+
+        try:
+            conference = (
+                Conference.objects
+                .prefetch_related(
+                    "schedule_days__schedules"
+                )
+                .get(
+                    conference_id=pk
+                )
+            )
+
+
+            pdf = generate_schedule_pdf(
+                conference
+            )
+
+
+            filename = (
+                f"{conference.conference_name}"
+                "-schedule.pdf"
+            )
+
+
+            return FileResponse(
+                pdf,
+                as_attachment=True,
+                filename=filename,
+                content_type="application/pdf",
+            )
+
+
+        except Conference.DoesNotExist:
+
+            return Response(
+                {
+                    "detail": "Conference not found"
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    
+    @action(
+        detail=True,
+        methods=["get"],
         url_path="qr-code",
     )
     def schedule_qr_code(self, request: Request, pk=None):
         download_url = (
-            f"{settings.FRONTEND_BASE_URL}/conference/{pk}/schedule/download"
+            f"{settings.FRONTEND_BASE_URL}/conference/{pk}/schedule/export"
         )
 
         img_io = generate_qr_code(download_url)
@@ -890,11 +939,11 @@ class ConferenceViewSet(viewsets.ViewSet):
         try:
             conference = Conference.objects.get(pk=pk)
 
+            # Delete the previous file
             if conference.id_badge_background:
-                old_path = conference.id_badge_background.path
-                if os.path.isfile(old_path):
-                    os.remove(old_path)
+                conference.id_badge_background.delete(save=False)
 
+            # Save the new one
             conference.id_badge_background = file
             conference.save(update_fields=["id_badge_background"])
 
