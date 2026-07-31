@@ -2,6 +2,18 @@
 from enum import Enum
 
 class AppPermissionEnum(str, Enum):
+    # Feedback Questions
+    CREATE_FEEDBACK_QUESTIONS = "permission.create.feedback.questions"
+    READ_FEEDBACK_QUESTIONS = "permission.view.feedback.questions"
+    UPDATE_FEEDBACK_QUESTIONS = "permission.update.feedback.questions"
+    DELETE_FEEDBACK_QUESTIONS = "permission.delete.feedback.questions"
+
+    # Feedback Options
+    DELETE_FEEDBACK_OPTIONS = "permission.delete.feedback.options"
+
+    # Feedback Responses
+    READ_FEEDBACK_RESPONSES = "permission.view.feedback.responses"
+    
     # Roles
     CREATE_ROLES = 'permission.create.roles'
     READ_ROLES = 'permission.view.roles'

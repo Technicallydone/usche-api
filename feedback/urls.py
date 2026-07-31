@@ -1,10 +1,16 @@
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from . import views
+
+from .views import FeedbackQuestionViewSet
 
 router = DefaultRouter()
 
-router.register(r'feedback', views.ConferenceQuestionViewSet, basename='feedback')
-router.register(r'feedback-report', views.FeedbackReportViewSet, basename='feedback-report')
+router.register(
+    r"",
+    FeedbackQuestionViewSet,
+    basename="feedback",
+)
 
-urlpatterns = router.urls
- 
+urlpatterns = [
+    path("", include(router.urls)),
+]

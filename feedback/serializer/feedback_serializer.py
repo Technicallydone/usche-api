@@ -1,36 +1,78 @@
 from rest_framework import serializers
-from feedback.models import Question, Option
 
-class SingleAnswerSerializer(serializers.Serializer):
+from feedback.enums.question_type import QuestionTypeEnum
+from feedback.model.question import Question
+from feedback.model.question_option import Option
+
+
+class FeedbackAnswerItemSerializer(serializers.Serializer):
     question_id = serializers.UUIDField()
     option_id = serializers.UUIDField(required=False, allow_null=True)
-    answer = serializers.CharField(allow_blank=True, required=False)
+    text = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
 
-    def validate(self, data):
-        question_id = data.get("question_id")
-        answer = data.get("answer", "")
-        option_id = data.get("option_id", None)
+    def validate(self, attrs):
+        question = Question.objects.filter(
+            id=attrs["question_id"],
+        ).first()
 
-        try:
-            question = Question.objects.get(id=question_id)
-        except Question.DoesNotExist:
-            raise serializers.ValidationError("Invalid question ID.")
+        if question is None:
+            raise serializers.ValidationError(
+                {
+                    "question_id": "Question does not exist."
+                }
+            )
 
-        data["question"] = question
+        option = None
 
-        if question.type == "multiple-choice":
-            if not option_id:
-                raise serializers.ValidationError("Option ID is required for multiple-choice questions.")
-            try:
-                option = Option.objects.get(id=option_id, question=question)
-            except Option.DoesNotExist:
-                raise serializers.ValidationError("Invalid option for the specified question.")
-            data["option"] = option
-            data["answer"] = "" 
-        elif question.type == "text":
-            if not answer:
-                raise serializers.ValidationError("Answer is required for text questions.")
-            data["option"] = None
-        else:
-            raise serializers.ValidationError("Unsupported question type.")
-        return data
+        if attrs.get("option_id"):
+            option = Option.objects.filter(
+                id=attrs["option_id"],
+            ).first()
+
+            if option is None:
+                raise serializers.ValidationError(
+                    {
+                        "option_id": "Selected option does not exist."
+                    }
+                )
+
+            if option.question_id != question.id:
+                raise serializers.ValidationError(
+                    {
+                        "option_id": (
+                            "Selected option does not belong to the selected question."
+                        )
+                    }
+                )
+
+        if question.type == QuestionTypeEnum.MULTIPLE_CHOICE.value:
+            if option is None:
+                raise serializers.ValidationError(
+                    {
+                        "option_id": "This question requires an option."
+                    }
+                )
+
+        if question.type == QuestionTypeEnum.TEXT.value:
+            if not attrs.get("text", "").strip():
+                raise serializers.ValidationError(
+                    {
+                        "text": "This question requires text."
+                    }
+                )
+
+        attrs["question"] = question
+        attrs["option"] = option
+
+        return attrs
+
+
+class SubmitFeedbackSerializer(serializers.Serializer):
+    answers = FeedbackAnswerItemSerializer(
+        many=True,
+        allow_empty=False,
+    )

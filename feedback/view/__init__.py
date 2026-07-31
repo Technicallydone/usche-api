@@ -1,2 +1,1 @@
-from .question import ConferenceQuestionViewSet
-from .feedback_report import FeedbackReportViewSet
+from .feedback_question import FeedbackQuestionViewSet
