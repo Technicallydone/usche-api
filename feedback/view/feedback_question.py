@@ -28,7 +28,7 @@ class FeedbackQuestionViewSet(viewsets.ViewSet):
     permission_classes = [permissions.AllowAny, HasAppPermission]
 
     permission_mapping = {
-        "list": AppPermissionEnum.READ_FEEDBACK_QUESTIONS.value,
+        # "list": AppPermissionEnum.READ_FEEDBACK_QUESTIONS.value,
         "retrieve": AppPermissionEnum.READ_FEEDBACK_QUESTIONS.value,
         "create": AppPermissionEnum.CREATE_FEEDBACK_QUESTIONS.value,
         "update": AppPermissionEnum.UPDATE_FEEDBACK_QUESTIONS.value,
