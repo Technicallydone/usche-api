@@ -1,2 +1,3 @@
 from .certificate_model import Certificate
 from .certificate_zip_model import CertificateZip
+from .certificate_job import CertificateGenerationJob

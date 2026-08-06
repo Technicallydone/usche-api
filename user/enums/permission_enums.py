@@ -2,6 +2,12 @@
 from enum import Enum
 
 class AppPermissionEnum(str, Enum):
+    # Certificates
+    CREATE_CERTIFICATE = "permission.create.certificate"
+    READ_CERTIFICATE = "permission.view.certificate"
+    UPDATE_CERTIFICATE = "permission.update.certificate"
+    DELETE_CERTIFICATE = "permission.delete.certificate"
+    
     # Feedback Questions
     CREATE_FEEDBACK_QUESTIONS = "permission.create.feedback.questions"
     READ_FEEDBACK_QUESTIONS = "permission.view.feedback.questions"

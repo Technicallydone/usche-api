@@ -1,202 +1,265 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import io
-from pathlib import Path
-from uuid import UUID
-import zipfile
-from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-
-from certificate.models import Certificate
-from certificate.serializers import CertificateUserListSerializer, CertificateResponseSerializer
-from usche_app import settings
-from user.models import User
-from conference.models import Conference
-from rest_framework.pagination import PageNumberPagination
-
-from typing import List, cast
-from django.http import FileResponse, HttpRequest
 import logging
 
-from user.serializers import UserResponseSerializer
-from utils.document_generator import generate_certificate_pdf
+from django.http import FileResponse, Http404
+from django.utils import timezone
+from certificate.tasks import generate_conference_certificates_task
+from rest_framework import permissions, status, viewsets
+from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.request import Request
+from rest_framework.response import Response
+
+from certificate.models import CertificateZip, CertificateGenerationJob
+from certificate.serializers import (
+    CertificateGenerationJobSerializer,
+    CertificateZipSerializer,
+)
+from conference.models import Conference
+from user.enums.permission_enums import AppPermissionEnum
+from user.permissions import HasAppPermission
 
 logger = logging.getLogger(__name__)
 
+
 class CertificateViewSet(viewsets.ViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    @action(detail=False, methods=["get"], url_path="download-certificates")
-    def download_certificates(self, request: HttpRequest):
+    permission_classes = [permissions.IsAuthenticated, HasAppPermission]
+
+    permission_mapping = {
+        "generate_certificates": AppPermissionEnum.CREATE_CERTIFICATE.value,
+        "job_status": AppPermissionEnum.READ_CERTIFICATE.value,
+        "download_certificates": AppPermissionEnum.READ_CERTIFICATE.value,
+        "cancel_job": AppPermissionEnum.DELETE_CERTIFICATE.value,
+        "list_zipped_certificates": AppPermissionEnum.READ_CERTIFICATE.value,
+    }
+
+    # =====================================================
+    # 1. CANCEL JOB
+    # Route: POST /api/v1/certificates/{conference_id}/cancel/
+    # =====================================================
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel_job(self, request: Request, pk=None):
+        """
+        Cancels and deletes any active certificate generation job for a conference.
+        """
         try:
-            conference_id = request.GET.get("conference_id")
-            if not conference_id:
+            conference = Conference.get_conference_by_id(pk)
+
+            if not conference:
                 return Response(
-                    {"detail": "conference_id is required."},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"detail": "Conference not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
-            try:
-                conference = Conference.objects.get(pk=conference_id)
-            except Conference.DoesNotExist:
-                return Response(
-                    {"detail": "Conference not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+            CertificateGenerationJob.kill_and_delete(conference)
 
-            zip_path = Path(settings.MEDIA_ROOT) / "certificates" / f"{conference.conference_id}.zip"
-            if not zip_path.exists():
-                return Response(
-                    {"detail": "Certificates ZIP file not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            return FileResponse(
-                open(zip_path, "rb"),
-                as_attachment=True,
-                filename=f"{conference.conference_name}_certificates.zip",
-                content_type="application/zip"
+            return Response(
+                {
+                    "detail": "Certificate generation job cancelled and cleared",
+                    "conference_id": conference.conference_id,
+                },
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:
-            logger.error(f"Error downloading certificates: {e}", exc_info=True)
+            logger.exception("Failed to cancel certificate job")
             return Response(
-                {"detail": "An error occurred while downloading the certificates."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["post"])
-    def issue_certificates(self, request: HttpRequest):
+    # =====================================================
+    # 2. GENERATE CERTIFICATES
+    # Route: POST /api/v1/certificates/{conference_id}/generate/
+    # =====================================================
+    @action(detail=True, methods=["post"], url_path="generate")
+    def generate_certificates(self, request: Request, pk=None):
         try:
-            conference_id = request.GET.get("conference_id")
-            if not conference_id:
-                return Response({"detail": "conference_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            conference = Conference.get_conference_by_id(pk)
 
-            try:
-                conference = Conference.objects.get(pk=conference_id)
-            except Conference.DoesNotExist:
-                return Response({"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
-
-            serializer = CertificateUserListSerializer(data=request.data)
-            if not serializer.is_valid():
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-            user_ids: List[UUID] = serializer.validated_data['user_ids']
-            users = User.objects.filter(user_id__in=user_ids)
-
-            # Validate existing user_ids
-            existing_user_ids = set(users.values_list("user_id", flat=True))
-            missing_ids = set(user_ids) - existing_user_ids
-            if missing_ids:
+            if not conference:
                 return Response(
-                    {"detail": f"Users not found: {', '.join(str(x) for x in missing_ids)}"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"detail": "Conference not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # Filter users who already have certificates
-            existing_cert_user_ids = set(
-                Certificate.objects.filter(
-                    user_id__in=user_ids, conference=conference
-                ).values_list("user_id", flat=True)
+            # HARD RESET
+            CertificateGenerationJob.kill_and_delete(conference)
+
+            job = CertificateGenerationJob.objects.create(
+                conference=conference,
+                status=CertificateGenerationJob.Status.PENDING,
+                started_at=timezone.now(),
             )
 
-            # Only process new certificates
-            users_to_create = [u for u in users if u.user_id not in existing_cert_user_ids]
-            
-            zip_buffer = io.BytesIO()
-            
-            # Define worker function for ThreadPoolExecutor
-            def create_cert_and_pdf(u):
-                cert = Certificate.objects.create(user=u, conference=conference)
-                pdf_bytes = generate_certificate_pdf(user=u, conference=conference)
-                if pdf_bytes:
-                    cert.is_created = True
-                    cert.save(update_fields=["is_created"])
-                return u, pdf_bytes
+            async_result = generate_conference_certificates_task.delay(str(job.job_id))
 
-            # Use ThreadPoolExecutor to generate PDFs concurrently
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(create_cert_and_pdf, u) for u in users_to_create]
+            job.task_id = async_result.id
+            job.save(update_fields=["task_id"])
 
-                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                    for future in as_completed(futures):
-                        u, pdf_bytes = future.result()
-                        if pdf_bytes:
-                            filename = f"{u.first_name}_{u.last_name}_certificate.pdf"
-                            zip_file.writestr(filename, pdf_bytes)
-
-            zip_buffer.seek(0)
-            
-            return FileResponse(
-                zip_buffer,
-                as_attachment=True,
-                filename="certificates.zip",
-                content_type="application/zip"
+            return Response(
+                CertificateGenerationJobSerializer({
+                    "job_id": job.job_id,
+                    "conference_id": conference.conference_id,
+                    "conference_name": conference.conference_name,
+                    "status": job.status,
+                    "total_attendees": job.total_attendees,
+                    "processed_attendees": job.processed_attendees,
+                    "successful_certificates": job.successful_certificates,
+                    "failed_certificates": job.failed_certificates,
+                    "progress": 0.0,
+                    "zip_file": None,
+                    "started_at": job.started_at,
+                    "completed_at": None,
+                    "created_at": job.created_at,
+                }).data,
+                status=status.HTTP_202_ACCEPTED,
             )
 
         except Exception as e:
-            logger.error(f"Error generating certificates: {e}", exc_info=True)
+            logger.exception("Failed to start certificate generation")
             return Response(
-                {"detail": "An error occurred while generating certificates."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    @action(detail=False, methods=["get"])
-    def list_conference_certificates(self, request: HttpRequest):
+    # =====================================================
+    # 3. JOB STATUS
+    # Routes: 
+    #   GET /api/v1/certificates/status/ (All active jobs)
+    #   GET /api/v1/certificates/status/?conference_id=<id> (Specific conference)
+    # =====================================================
+    @action(detail=False, methods=["get"], url_path="status")
+    def job_status(self, request: Request):
+        conference_id = request.query_params.get("conference_id")
 
-        conference_id = request.GET.get("conference_id")
-        search = request.GET.get("search")
+        # Base query: Exclude COMPLETED jobs so we only track active/pending work
+        queryset = (
+            CertificateGenerationJob.objects
+            .select_related("conference")
+            .exclude(status=CertificateGenerationJob.Status.COMPLETED)
+        )
 
-        if not conference_id:
-            return Response({"detail": "conference_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Filter by specific conference if passed
+        if conference_id:
+            queryset = queryset.filter(conference__conference_id=conference_id)
 
+        # Order by newest first
+        jobs = queryset.order_by("-created_at")
+
+        # If asking for a specific conference and none found, return 404 (or empty list)
+        if conference_id and not jobs.exists():
+            return Response(
+                {"detail": "No active certificate job found for this conference"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Serialize list of jobs
+        data = [
+            {
+                "job_id": job.job_id,
+                "conference_id": job.conference.conference_id,
+                "conference_name": job.conference.conference_name,
+                "status": job.status,
+                "total_attendees": job.total_attendees,
+                "processed_attendees": job.processed_attendees,
+                "successful_certificates": job.successful_certificates,
+                "failed_certificates": job.failed_certificates,
+                "progress": self._progress(job),
+                "zip_file": job.zip_file.url if job.zip_file else None,
+                "started_at": job.started_at,
+                "completed_at": job.completed_at,
+                "created_at": job.created_at,
+            }
+            for job in jobs
+        ]
+
+        return Response(
+            CertificateGenerationJobSerializer(data, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    # =====================================================
+    # 4. DOWNLOAD ZIPPED CERTIFICATES
+    # Route: GET /api/v1/certificates/{conference_id}/download/
+    # =====================================================
+    @action(detail=True, methods=["get"], url_path="download")
+    def download_certificates(self, request: Request, pk=None):
         try:
-            try:
-                Conference.objects.get(pk=conference_id)
-            except Conference.DoesNotExist:
-                return Response({"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
+            job = (
+                CertificateGenerationJob.objects
+                .select_related("conference")
+                .get(conference__conference_id=pk)
+            )
 
-            certificates = Certificate.certificates_by_conference_with_search(conference_id, search)
+            if job.status != CertificateGenerationJob.Status.COMPLETED:
+                return Response(
+                    {
+                        "detail": "Certificates not ready yet",
+                        "status": job.status,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not job.zip_file:
+                raise Http404("ZIP file not found")
+
+            file_handle = job.zip_file.open("rb")
+
+            response = FileResponse(
+                file_handle,
+                content_type="application/zip",
+            )
+
+            response["Content-Disposition"] = (
+                f'attachment; filename="certificates_{job.conference.conference_name}.zip"'
+            )
+
+            return response
+
+        except CertificateGenerationJob.DoesNotExist:
+            return Response(
+                {"detail": "No certificate job found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    # =====================================================
+    # 5. PAGINATED LIST OF ALL ZIPPED CERTIFICATES (FOR FRONTEND TABLE)
+    # Route: GET /api/v1/certificates/zips/
+    # =====================================================
+    @action(detail=False, methods=["get"], url_path="zips")
+    def list_zipped_certificates(self, request: Request):
+        try:
+            zips = (
+                CertificateZip.objects
+                .select_related("conference")
+                .exclude(zip_file="")
+                .order_by("-updated_at")
+            )
+
             paginator = PageNumberPagination()
-            page = paginator.paginate_queryset(certificates, request)
+            page = paginator.paginate_queryset(zips, request)
 
             if page is not None:
-                serializer = CertificateResponseSerializer(page, many=True)
+                serializer = CertificateZipSerializer(page, many=True)
                 return paginator.get_paginated_response(serializer.data)
 
-            serializer = CertificateResponseSerializer(certificates, many=True)
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
+            serializer = CertificateZipSerializer(zips, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
-            logger.error(f"Error retrieving certificates: {e}", exc_info=True)
-            return Response({"detail": "An error occurred while retrieving certificates."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.exception("Error retrieving zipped certificates list")
+            return Response(
+                {"detail": "An error occurred while retrieving zipped certificates."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-    @action(detail=False, methods=["get"])
-    def users_without_certificates(self, request: HttpRequest):
-        conference_id = request.GET.get("conference_id")
-        search = request.GET.get("search")
-
-        if not conference_id:
-            return Response({"detail": "conference_id is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            try:
-                conference = Conference.objects.get(pk=conference_id)
-            except Conference.DoesNotExist:
-                return Response({"detail": "Conference not found."}, status=status.HTTP_404_NOT_FOUND)
-
-            users = Certificate.users_without_certificate_for_conference(conference, search)
-            paginator = PageNumberPagination()
-            paginator.page_size = 3
-            page = paginator.paginate_queryset(users, request)
-
-            if page is not None:
-                serializer = UserResponseSerializer(page, many=True)
-                return paginator.get_paginated_response(serializer.data)
-
-            serializer = UserResponseSerializer(users, many=True)
-            return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            logger.error(f"Error retrieving users without certificates: {e}", exc_info=True)
-            return Response({"detail": "An error occurred while retrieving users."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # =====================================================
+    # 6. PROGRESS CALC
+    # =====================================================
+    def _progress(self, job: CertificateGenerationJob):
+        if job.total_attendees == 0:
+            return 0.0
+        return round(
+            (job.processed_attendees / job.total_attendees) * 100,
+            2,
+        )

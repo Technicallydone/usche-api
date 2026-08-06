@@ -1,8 +1,11 @@
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import CertificateViewSet
+from . import views
 
 router = DefaultRouter()
 
-router.register(r'certificate', CertificateViewSet, basename='certificate')
+router.register(r'', views.CertificateViewSet, basename='certificates')
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('', include(router.urls)),
+]

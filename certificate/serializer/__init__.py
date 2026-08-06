@@ -1,2 +1,1 @@
-from .certificate_serializer import CertificateUserListSerializer
-from .certificate_response_serailizer import CertificateResponseSerializer
+from .certificate_serializer import CertificateZipSerializer, CertificateGenerationJobSerializer
