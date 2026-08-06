@@ -2,6 +2,7 @@ import logging
 
 from feedback.enums.question_type import QuestionTypeEnum
 from feedback.models import Option
+from feedback.utils import generate_feedback_report_pdf
 from rest_framework import permissions, status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
@@ -15,11 +16,14 @@ from feedback.serializers import (
     QuestionFilterQuerySerializer,
     QuestionSerializer,
     UpdateQuestionSerializer,
-    SubmitFeedbackSerializer
+    SubmitFeedbackSerializer,
+    FeedbackReportFilterQuerySerializer,
+    FeedbackAnswerDetailSerializer
 )
 from user.enums.permission_enums import AppPermissionEnum
 from user.permissions import HasAppPermission
 from django.db import transaction
+from django.http import FileResponse
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,115 @@ class FeedbackQuestionViewSet(viewsets.ViewSet):
         "update": AppPermissionEnum.UPDATE_FEEDBACK_QUESTIONS.value,
         "destroy": AppPermissionEnum.DELETE_FEEDBACK_QUESTIONS.value,
         "delete_option": AppPermissionEnum.DELETE_FEEDBACK_OPTIONS.value,
+        "view_responses": AppPermissionEnum.READ_FEEDBACK_RESPONSES.value,
+        "export_feedback_pdf": AppPermissionEnum.READ_FEEDBACK_RESPONSES.value,
     }
+    
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"(?P<conference_id>[^/.]+)/pdf",
+    )
+    def export_feedback_pdf(self, request: Request, conference_id=None):
+        try:
+            conference = Conference.objects.get(conference_id=conference_id)
+
+            pdf = generate_feedback_report_pdf.generate_feedback_report_pdf(conference=conference)
+
+            filename = f"{conference.conference_name}-feedback-report.pdf"
+
+            return FileResponse(
+                pdf,
+                as_attachment=True,
+                filename=filename,
+                content_type="application/pdf",
+            )
+
+        except Conference.DoesNotExist:
+            logger.warning(
+                f"Export PDF failed: Conference '{conference_id}' not found."
+            )
+            return Response(
+                {"detail": "Conference not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except Exception as e:
+            logger.error(
+                f"Error generating feedback PDF for conference {conference_id}: {str(e)}",
+                exc_info=True,
+            )
+            return Response(
+                {"detail": "Failed to generate feedback report PDF."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+    
+    # -----------------------------------
+    # VIEW FEEDBACK REPORT (PAGINATED ANSWERS)
+    # -----------------------------------
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="responses",
+    )
+    def view_responses(self, request: Request):
+        filter_serializer = FeedbackReportFilterQuerySerializer(
+            data=request.query_params
+        )
+        filter_serializer.is_valid(raise_exception=True)
+
+        conference_id = filter_serializer.validated_data.get("conference_id")
+        created_from = filter_serializer.validated_data.get("created_from")
+        created_to = filter_serializer.validated_data.get("created_to")
+
+        try:
+            answer_filters = {}
+            if conference_id:
+                answer_filters["question__conference_id"] = conference_id
+            if created_from:
+                answer_filters["submitted_at__gte"] = created_from
+            if created_to:
+                answer_filters["submitted_at__lte"] = created_to
+
+            answers_qs = (
+                FeedbackAnswer.objects
+                .filter(**answer_filters)
+                .select_related("question", "option")
+                .order_by("-submitted_at")
+            )
+
+            paginator = PageNumberPagination()
+            paginator.page_size_query_param = "page_size"
+
+            page = paginator.paginate_queryset(
+                answers_qs,
+                request,
+            )
+
+            serializer = FeedbackAnswerDetailSerializer(
+                page if page is not None else answers_qs,
+                many=True,
+            )
+
+            if page is not None:
+                return paginator.get_paginated_response(
+                    serializer.data
+                )
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error fetching feedback responses: {e}",
+                exc_info=True,
+            )
+
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
     
     # -----------------------------------
     # SUBMIT FEEDBACK

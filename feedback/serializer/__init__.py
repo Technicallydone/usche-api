@@ -10,5 +10,9 @@ from .question_serializer import (
 )
 from .feedback_serializer import (
     FeedbackAnswerItemSerializer,
-    SubmitFeedbackSerializer
+    SubmitFeedbackSerializer,
+    FeedbackReportFilterQuerySerializer,
+    FeedbackAnswerDetailSerializer,
+    QuestionReportSerializer,
+    OptionReportSerializer
 )
