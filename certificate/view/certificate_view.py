@@ -9,7 +9,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from certificate.models import CertificateZip, CertificateGenerationJob
+from certificate.models import CertificateZip, CertificateGenerationJob, Certificate
 from certificate.serializers import (
     CertificateGenerationJobSerializer,
     CertificateZipSerializer,
@@ -17,6 +17,7 @@ from certificate.serializers import (
 from conference.models import Conference
 from user.enums.permission_enums import AppPermissionEnum
 from user.permissions import HasAppPermission
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +83,29 @@ class CertificateViewSet(viewsets.ViewSet):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # HARD RESET
-            CertificateGenerationJob.kill_and_delete(conference)
+            with transaction.atomic():
+                # ---------------------------------------------------------
+                # 1. DELETE ALL EXISTING CERTIFICATE DATA FOR THIS CONFERENCE
+                # ---------------------------------------------------------
+                # Stop any active Celery task & remove existing generation job
+                CertificateGenerationJob.kill_and_delete(conference)
 
-            job = CertificateGenerationJob.objects.create(
-                conference=conference,
-                status=CertificateGenerationJob.Status.PENDING,
-                started_at=timezone.now(),
-            )
+                # Delete existing ZIP file records
+                CertificateZip.objects.filter(conference=conference).delete()
 
+                # Delete all previously generated individual certificates
+                Certificate.objects.filter(conference=conference).delete()
+
+                # ---------------------------------------------------------
+                # 2. CREATE NEW JOB & DISPATCH TASK
+                # ---------------------------------------------------------
+                job = CertificateGenerationJob.objects.create(
+                    conference=conference,
+                    status=CertificateGenerationJob.Status.PENDING,
+                    started_at=timezone.now(),
+                )
+
+            # Dispatch background task outside atomic block to ensure DB state is committed
             async_result = generate_conference_certificates_task.delay(str(job.job_id))
 
             job.task_id = async_result.id
